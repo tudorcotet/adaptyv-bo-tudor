@@ -117,7 +117,6 @@ class BayesianOptimizationLoop:
 
             # Update max fitness
             self.max_fitness = max(self.max_fitness, max(new_fitness_values))
-            print(selected_candidates)
             self.generator.update_sequences(selected_candidates)
 
             self.logger.info(f"Iteration {iteration + 1} completed. Current max fitness: {self.max_fitness}")

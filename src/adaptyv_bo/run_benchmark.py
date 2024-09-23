@@ -103,7 +103,3 @@ if __name__ == "__main__":
     config = OptimizationConfig()
     run_multiple_seeds(config)
 
-    config.n_candidates = 1000
-    config.n_iterations = 50
-    config.n_training_iter = 50
-    config.n_initial = 20

@@ -25,7 +25,6 @@ def load_benchmark_data(file_path: str) -> Dict[str, float]:
     return df.set_index('sequence')['fitness'].to_dict()
 
 
-
 def get_surrogate(config: OptimizationConfig):
     """
     Get the surrogate model based on the configuration.

@@ -1,6 +1,7 @@
 import logging
 import os
 import numpy as np
+import pandas as pd 
 from typing import List, Tuple
 from config.optimization import OptimizationConfig
 from acquisitions.base import BaseAcquisition
@@ -51,6 +52,7 @@ class BayesianOptimizationLoop:
         self.acquired_sequences: set = set()
         self.logger = self._setup_logger()
         self.max_fitness = float('-inf')
+        self.seed_results_df: pd.DataFrame = pd.DataFrame()
 
     def _setup_logger(self) -> logging.Logger:
         """Set up and return a logger for the optimization process."""
@@ -90,7 +92,6 @@ class BayesianOptimizationLoop:
             self.logger.info(f"Starting iteration {iteration + 1}")
 
             self.surrogate.fit(np.array(self.encoded_sequences), np.array(self.fitness_values))
-
             if isinstance(self.generator, (CombinatorialGenerator, BenchmarkGenerator)):
                 candidates = self.generator.generate_all()
             else:  # MutationGenerator
@@ -107,7 +108,6 @@ class BayesianOptimizationLoop:
 
             idx_top = np.argsort(-acquisition_values)[:self.config.batch_size]
             selected_candidates = [candidates[i] for i in idx_top]
-
             new_fitness_values = self.query.query(selected_candidates)
 
             self.sequences.extend(selected_candidates)
@@ -117,7 +117,7 @@ class BayesianOptimizationLoop:
 
             # Update max fitness
             self.max_fitness = max(self.max_fitness, max(new_fitness_values))
-
+            print(selected_candidates)
             self.generator.update_sequences(selected_candidates)
 
             self.logger.info(f"Iteration {iteration + 1} completed. Current max fitness: {self.max_fitness}")
@@ -139,3 +139,31 @@ class BayesianOptimizationLoop:
         """Generate plots of the optimization results."""
         self.plotter.plot_embeddings(self.sequences, self.fitness_values, self.rounds)
         self.plotter.plot_max_fitness(self.fitness_values)
+
+    def get_seed_results(self):
+        """
+        Get the results for the current seed.
+        """
+        if self.seed_results_df.empty:
+            self.seed_results_df = pd.DataFrame({
+                'Seed': self.config.seed,
+                'Round': self.rounds,
+                'Sequence': self.sequences,
+                'Fitness': self.fitness_values,
+                'Surrogate': self.config.surrogate_type,
+                'Acquisition': self.config.acquisition_type,
+                'Encoding': self.config.encoding_type,
+                'Generator': self.config.generator_type
+            })
+
+    def save_results(self):
+        """
+        Save the optimization results to a CSV file.
+        """
+        # Create the csv directory if it doesn't exist
+        self.get_seed_results()
+        if not self.seed_results_df.empty:
+            os.makedirs(os.path.join(self.plotter.output_dir, "csv"), exist_ok=True)
+            seed_csv_path = os.path.join(self.plotter.output_dir, "csv", f"seed_{self.config.seed}_results.csv")
+            self.seed_results_df.to_csv(seed_csv_path, index=False)
+            self.logger.info(f"Seed {self.config.seed} results saved to {seed_csv_path}")

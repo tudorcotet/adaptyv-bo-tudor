@@ -52,13 +52,14 @@ class GPSurrogate(BaseSurrogate):
 
         optimizer = torch.optim.Adam(self.model.parameters(), lr=0.1)
         mll = gpytorch.mlls.ExactMarginalLogLikelihood(self.likelihood, self.model)
-
-        for _ in range(self.config.n_training_iter):
-            optimizer.zero_grad()
-            output = self.model(X_train)
-            loss = -mll(output, y_train)
-            loss.backward()
-            optimizer.step()
+        
+        with gpytorch.settings.fast_pred_var(), gpytorch.settings.use_toeplitz(False):  
+            for _ in range(self.config.n_training_iter):
+                optimizer.zero_grad()
+                output = self.model(X_train)
+                loss = -mll(output, y_train)
+                loss.backward()
+                optimizer.step()
 
     def predict(self, X: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -72,7 +73,7 @@ class GPSurrogate(BaseSurrogate):
         """
         self.model.eval()
         self.likelihood.eval()
-        with torch.no_grad(), gpytorch.settings.fast_pred_var():
+        with torch.no_grad(), gpytorch.settings.fast_pred_var(), gpytorch.settings.use_toeplitz(False):
             X = torch.FloatTensor(X).to(self.device)
             observed_pred = self.likelihood(self.model(X))
         return observed_pred.mean.cpu().numpy(), observed_pred.variance.cpu().numpy()
@@ -91,7 +92,8 @@ class GPSurrogate(BaseSurrogate):
         self.model.eval()
         self.likelihood.eval()
         means, variances = [], []
-        with torch.no_grad(), gpytorch.settings.fast_pred_var():
+    
+        with torch.no_grad(), gpytorch.settings.fast_pred_var(), gpytorch.settings.use_toeplitz(False):
             for i in range(0, len(X), batch_size):
                 batch = torch.FloatTensor(X[i:i+batch_size]).to(self.device)
                 observed_pred = self.likelihood(self.model(batch))

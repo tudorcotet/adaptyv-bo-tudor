@@ -30,7 +30,7 @@ class OptimizationConfig:
         indices_to_mutate (Optional[List[int]]): Specific indices to mutate in the sequence. Default is None.
     """
 
-    n_iterations: int = 10
+    n_iterations: int = 20
     n_candidates: int = 10
     n_initial: int = 10
     seq_length: int = 4
@@ -49,5 +49,5 @@ class OptimizationConfig:
     encoding_type: str = 'one_hot'
     benchmark_file: str = '/Users/tudorcotet/Desktop/small_gb1.csv'
     batch_size: int = 5
-    generator_type: str = 'benchmark'
+    generator_type: str = 'mutation'
     indices_to_mutate: Optional[List[int]] = None

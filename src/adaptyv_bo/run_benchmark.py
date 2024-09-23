@@ -14,6 +14,7 @@ from encoding.base import BaseEncoding
 from utils.plotter import SimplePlotter
 from optimization.bayesian_loop import BayesianOptimizationLoop
 
+
 def run_multiple_seeds(config: OptimizationConfig):
     """
     Run multiple seeds of the Bayesian optimization process and aggregate results.
@@ -36,76 +37,44 @@ def run_multiple_seeds(config: OptimizationConfig):
     """
     benchmark_data = load_benchmark_data(config.benchmark_file)
     all_results: List[pd.DataFrame] = []
-
     for seed in range(config.n_seeds):
         config.seed = seed
         np.random.seed(seed)
         torch.manual_seed(seed)
-
+        torch.cuda.manual_seed(seed)
+    
+        # Initialize the acquisition function
         acquisition: BaseAcquisition = get_acquisition(config)
+        
+        # Create a query object for the benchmark data
         query: BenchmarkQuery = BenchmarkQuery(config, benchmark_data)
-        initial_sequences: np.ndarray = np.random.choice(list(benchmark_data.keys()), size=config.n_initial, replace=False)
-
+        
+        # Randomly select initial sequences from the benchmark data
+        initial_sequences: List[str] = np.random.choice(list(benchmark_data.keys()), size=config.n_initial, replace=False).tolist()
+        
+        # Initialize the sequence generator
         generator: BaseGenerator = get_generator(config, benchmark_data, initial_sequences)
+        
+        # Create the surrogate model
         surrogate: BaseSurrogate = get_surrogate(config)
+        
+        # Initialize the sequence encoding method
         encoding: BaseEncoding = get_encoding(config)
+        
+        # Create a plotter object for visualizing results
         plotter: SimplePlotter = SimplePlotter(config, encoding)
-
-
+        
+        # Initialize the Bayesian optimization loop
         loop: BayesianOptimizationLoop = BayesianOptimizationLoop(config, acquisition, query, generator, surrogate, encoding, plotter)
-        loop.surrogate.fit(np.array(loop.encoded_sequences), np.array(loop.fitness_values))
-
-        if isinstance(self.generator, (CombinatorialGenerator, BenchmarkGenerator)):
-            candidates = loop.generator.generate_all()
-        else:  # MutationGenerator
-            candidates = self.generator.generate(self.config.n_candidates)
-
-        if not candidates:
-            self.logger.warning(f"No new candidates generated in iteration {iteration + 1}. Using existing candidates.")
-            candidates = self.sequences  # Use existing sequences as candidates
-
-        encoded_candidates = loop.encoding.encode(candidates)
-        mu, sigma = loop.surrogate.batch_predict(encoded_candidates, batch_size = 50)
-
-        acquisition_values = self.acquisition.acquire(mu, sigma, self.max_fitness)
-
-        idx_top = np.argsort(-acquisition_values)[:self.config.batch_size]
-        selected_candidates = [candidates[i] for i in idx_top]
-
-        new_fitness_values = self.query.query(selected_candidates)
-
-        self.sequences.extend(selected_candidates)
-        self.encoded_sequences.extend(self.encoding.encode(selected_candidates))
-        self.fitness_values.extend(new_fitness_values)
-        self.rounds.extend([iteration + 1] * len(selected_candidates))
-
-        # Update max fitness
-        self.max_fitness = max(self.max_fitness, max(new_fitness_values))
-
-        self.generator.update_sequences(selected_candidates)
-
-        self.logger.info(f"Iteration {iteration + 1} completed. Current max fitness: {self.max_fitness}")
-
+        
+        # Run the optimization loop and get the results
         sequences, fitness_values, rounds = loop.run()
+
+        loop.save_results()
         loop.plot_results()
-
-        seed_results = pd.DataFrame({
-            'Seed': seed,
-            'Round': rounds,
-            'Sequence': sequences,
-            'Fitness': fitness_values,
-            'Surrogate': config.surrogate_type,
-            'Acquisition': config.acquisition_type,
-            'Encoding': config.encoding_type,
-            'Generator': config.generator_type
-        })
-        all_results.append(seed_results)
-
         # Save individual seed results
-        seed_csv_path = os.path.join(plotter.output_dir, "csv", f"seed_{seed}_results.csv")
-        seed_results.to_csv(seed_csv_path, index=False)
-        print(f"Seed {seed} results saved to {seed_csv_path}")
-
+        all_results.append(loop.seed_results_df)
+     
     combined_results = pd.concat(all_results, ignore_index=True)
     combined_csv_path = os.path.join(plotter.output_dir, "csv", "combined_results.csv")
     combined_results.to_csv(combined_csv_path, index=False)
@@ -132,5 +101,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     config = OptimizationConfig(**{k: v for k, v in vars(args).items() if k in OptimizationConfig.__dataclass_fields__})
     config = OptimizationConfig()
-
     run_multiple_seeds(config)
+
+    config.n_candidates = 1000
+    config.n_iterations = 50
+    config.n_training_iter = 50
+    config.n_initial = 20

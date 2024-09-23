@@ -1,4 +1,6 @@
 import torch
+import numpy as np
+from scipy.stats import norm
 from abc import ABC, abstractmethod
 from config.optimization import OptimizationConfig
 from acquisitions.base import BaseAcquisition
@@ -23,20 +25,19 @@ class UCBAcquisition(BaseAcquisition):
         super().__init__(config)
         self.beta = config.beta
 
-    def acquire(self, mu, sigma, best_f):
+    def acquire(self, mu: np.ndarray, sigma: np.ndarray, best_f: float) -> np.ndarray:
         """
         Compute the UCB scores for candidate points.
 
         Args:
-            mu (torch.Tensor): Mean predictions for the candidates.
-            sigma (torch.Tensor): Standard deviation of predictions for the candidates.
+            mu (np.ndarray): Mean predictions for the candidates.
+            sigma (np.ndarray): Standard deviation of predictions for the candidates.
             best_f (float): The current best observed value (not used in UCB).
 
         Returns:
-            torch.Tensor: UCB scores for each candidate point.
+            np.ndarray: UCB scores for each candidate point.
         """
-        ucb_scores = mu + self.beta * torch.sqrt(sigma)
-        return ucb_scores
+        return mu + self.beta * np.sqrt(sigma)
 
 class ExpectedImprovementAcquisition(BaseAcquisition):
     """
@@ -46,19 +47,59 @@ class ExpectedImprovementAcquisition(BaseAcquisition):
     that are expected to improve upon the current best observed value.
     """
 
-    def acquire(self, mu, sigma, best_f):
+    def acquire(self, mu: np.ndarray, sigma: np.ndarray, best_f: float) -> np.ndarray:
         """
-        Acquire the best candidate using the EI strategy.
+        Compute the Expected Improvement scores for candidate points.
 
         Args:
-            mu: Mean predictions for the candidates.
-            sigma: Standard deviation of predictions for the candidates.
-            best_f: The current best observed value.
+            mu (np.ndarray): Mean predictions for the candidates.
+            sigma (np.ndarray): Standard deviation of predictions for the candidates.
+            best_f (float): The current best observed value.
 
         Returns:
-            A list containing the index of the best candidate according to the EI score.
+            np.ndarray: EI scores for each candidate point.
         """
-        z = (mu - best_f) / torch.sqrt(sigma)
-        ei = (mu - best_f) * torch.normal.cdf(z) + torch.sqrt(sigma) * torch.normal.pdf(z)
-        best_idx = torch.argmax(ei)
-        return [best_idx]
+        with np.errstate(divide='ignore'):
+            imp = mu - best_f
+            Z = imp / sigma
+            ei = imp * norm.cdf(Z) + sigma * norm.pdf(Z)
+            ei[sigma == 0.0] = 0.0
+
+        return ei
+
+class ProbabilityOfImprovementAcquisition(BaseAcquisition):
+    """
+    Probability of Improvement (PI) acquisition function.
+
+    This class implements the PI acquisition strategy, which selects candidates
+    based on their probability of improving upon the current best observed value.
+    """
+
+    def __init__(self, config: OptimizationConfig):
+        """
+        Initialize the PI acquisition function.
+
+        Args:
+            config (OptimizationConfig): Configuration object containing
+                optimization parameters, including the xi value for PI.
+        """
+        super().__init__(config)
+        self.xi = config.xi
+
+    def acquire(self, mu: np.ndarray, sigma: np.ndarray, best_f: float) -> np.ndarray:
+        """
+        Compute the Probability of Improvement scores for candidate points.
+
+        Args:
+            mu (np.ndarray): Mean predictions for the candidates.
+            sigma (np.ndarray): Standard deviation of predictions for the candidates.
+            best_f (float): The current best observed value.
+
+        Returns:
+            np.ndarray: PI scores for each candidate point.
+        """
+        with np.errstate(divide='ignore'):
+            z = (mu - best_f - self.xi) / sigma
+            pi = norm.cdf(z)
+
+        return pi

@@ -1,0 +1,8 @@
+[core]
+    remote = myremote
+['remote "mlflow"']
+    url = s3://ml1/mlflow/
+['remote "myremote"']
+    url = s3://ml1/mlflow/
+    access_key_id = 06H7DXRQWZ8UETJZ976D
+    secret_access_key = zcOa2W3FF6vK3jwCurKyun57heesBQKzph89YpDy

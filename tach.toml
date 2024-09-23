@@ -1,0 +1,7 @@
+modules = [
+    { path = "my_package" },
+]
+exclude = []
+source_roots = [
+    "src",
+]

@@ -1,0 +1,110 @@
+[build-system]
+requires = ["setuptools","wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "adaptyv_bo" # keep it sensible.
+version = "0.0.1"
+requires-python = ">=3.8"
+dependencies = [
+    "mlflow", # for model tracking
+    "torch", # pytorch, you will almost certainly use it
+    #"torchshow", # if you want to easily look at tensors
+]
+authors = [
+    {name = "Tudor-Stefan Cotet", email = "tudor@adaptyvbio.com"}, # identify yourself
+]
+#description = "Describe what this project is about"
+#readme = "Readme.md"
+# for public releases
+#classifiers = [
+#    "Framework :: Django",
+#    "Programming Language :: Python :: 3",
+#]
+#keywords = ["one", "two"]
+#license = {text = "BSD-3-Clause"}
+[project.optional-dependencies]
+dev = [
+    "pytest",# test runner
+    "ruff", # fast lint & formatter
+    "mypy", # type hints <3
+    "tach", #modules
+    "isort",
+    "interrogate",
+    "tox",
+    "pytest",
+    "pre-commit", # pre-commit hooks
+    "commitlint",# conventional commit lints
+    "modal" # for deployment
+]
+[project.scripts]
+my_example = "my_package.scripts.example:run_example" # instead of a scripts folder, use this for installable entry points
+
+
+#tweak where to find your code
+[tool.setuptools.packages.find]
+where = ["src"]  # list of folders that contain the packages (["."] by default)
+include = ["my_package*"]  # package names should match these glob patterns (["*"] by default)
+exclude = ["my_package.tests*"]  # exclude packages matching these glob patterns (empty by default)
+namespaces = false  # to disable scanning PEP 420 namespaces (true by default)
+
+[tool.ruff.lint]
+# Enable all `pydocstyle` rules, limiting to those that adhere to the
+# Google convention via `convention = "numpy"`, below.
+select = ["D"]
+
+# On top of the numpy convention, disable `D417`, which requires
+# documentation for every function parameter and `D401` which complains about the "mood" of documentation.
+ignore = ["D417","D401"]
+# Enable D400 on top of the numpy convention.
+#extend-select = ["D400"]
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.docsig]
+disable = [
+    "E109",
+]
+ignore-no-parameters = true
+
+[tool.pytest.ini_options]
+pythonpath = [
+  "src"
+]
+
+
+[tool.isort]
+known_third_party = "wandb"
+[tool.interrogate]
+ignore-init-method = false
+ignore-init-module = false
+ignore-magic = false
+ignore-semiprivate = false
+ignore-private = false
+ignore-property-decorators = false
+ignore-module = false
+ignore-nested-functions = false
+ignore-nested-classes = false
+ignore-setters = false
+ignore-overloaded-functions = false
+fail-under = 80
+# example values
+exclude = ["setup.py", "docs", "build"]
+# example regex
+ignore-regex = ["^get$", "^mock_.*", ".*BaseClass.*"]
+ext = []
+# possible values: sphinx (default), google
+style = "sphinx"
+# possible values: 0 (minimal output), 1 (-v), 2 (-vv)
+verbose = 2
+quiet = false
+whitelist-regex = []
+color = true
+omit-covered-files = false
+# output file logation
+generate-badge = "./badges/"
+badge-format = "svg"
+
+
+# ... other project metadata fields as listed in:
+#     https://packaging.python.org/en/latest/guides/writing-pyproject-toml/

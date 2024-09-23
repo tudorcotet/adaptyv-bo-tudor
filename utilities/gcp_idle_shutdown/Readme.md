@@ -1,0 +1,3 @@
+# GCP instance shutdown
+
+GCP does not have a simple mechanism for idle instance shutdown, but it can be set up with a startup script. In order to do that, edit the instance and add the contents of [this script](idle_startup_script.sh) to the startup script field in the Metadata section. You can modify the `wait_minutes` parameter to change the interval that the instance is allowed to remain idle for. Check the [logs file](https://googlecloudarchitect.us/viewing-output-from-startup-scripts-gcp-compute-engine/) to monitor the idle minute count. **Important note: the script will not work without the [`bc` package](https://ioflood.com/blog/install-bc-command-linux/#:~:text=The%20'bc'%20command%20is%20typically,command%20sudo%20yum%20install%20bc%20.) installed.**

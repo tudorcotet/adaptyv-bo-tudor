@@ -1,0 +1,63 @@
+exclude: '^$'
+fail_fast: true
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v3.2.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: v0.6.4
+    hooks:
+      # Run the linter.
+      - id: ruff
+        types_or: [python, pyi]
+        args: [ --fix ] # optionally, fix things
+      # Run the formatter.
+      - id: ruff-format
+        types_or: [python, pyi]
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.9.0
+    hooks:
+      - id: pyupgrade
+        args: [--py36-plus]
+  - repo: https://github.com/gauge-sh/tach-pre-commit
+    rev: v0.10.6 # change this to the latest tag!
+    hooks:
+      - id: tach
+  - repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        args: ["--profile", "black", "--filter-files"]
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.2.5
+    hooks:
+      - id: codespell
+        name: codespell
+        description: Checks for common misspellings in text files.
+        entry: codespell -L nd
+        language: python
+        types: [text]
+  - repo: https://github.com/econchick/interrogate
+    rev: 1.7.0
+    hooks:
+      - id: interrogate
+        args: ["--fail-under=80", "-vv"]
+        pass_filenames: false
+  - repo: https://github.com/jshwi/docsig
+    rev: v0.34.0
+    hooks:
+      - id: docsig
+        args:
+          - "-i"
+          - "-d E109"
+  - repo: https://github.com/opensource-nepal/commitlint
+    rev: v1.2.0
+    hooks:
+      - id: commitlint

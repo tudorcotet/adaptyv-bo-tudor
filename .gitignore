@@ -238,4 +238,11 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 
+# Mac
+.DS_Store
+
+# DVC
+.dvc
+
+
 # End of https://www.toptal.com/developers/gitignore/api/python,macosx,linux,windows,git,pytorch,torch,ml

@@ -67,39 +67,70 @@ class ExpectedImprovementAcquisition(BaseAcquisition):
 
         return ei
 
-class ProbabilityOfImprovementAcquisition(BaseAcquisition):
+class ThompsonSamplingAcquisition(BaseAcquisition):
     """
-    Probability of Improvement (PI) acquisition function.
+    Thompson Sampling acquisition function.
 
-    This class implements the PI acquisition strategy, which selects candidates
-    based on their probability of improving upon the current best observed value.
+    This class implements the Thompson Sampling strategy, which selects candidates
+    by sampling from the posterior distribution of the surrogate model.
     """
-
-    def __init__(self, config: OptimizationConfig):
-        """
-        Initialize the PI acquisition function.
-
-        Args:
-            config (OptimizationConfig): Configuration object containing
-                optimization parameters, including the xi value for PI.
-        """
-        super().__init__(config)
-        self.xi = config.xi
 
     def acquire(self, mu: np.ndarray, sigma: np.ndarray, best_f: float) -> np.ndarray:
         """
-        Compute the Probability of Improvement scores for candidate points.
+        Compute the Thompson Sampling scores for candidate points.
 
         Args:
             mu (np.ndarray): Mean predictions for the candidates.
             sigma (np.ndarray): Standard deviation of predictions for the candidates.
-            best_f (float): The current best observed value.
+            best_f (float): The current best observed value (not used in Thompson Sampling).
 
         Returns:
-            np.ndarray: PI scores for each candidate point.
+            np.ndarray: Sampled values from the posterior distribution for each candidate point.
         """
-        with np.errstate(divide='ignore'):
-            z = (mu - best_f - self.xi) / sigma
-            pi = norm.cdf(z)
+        return np.random.normal(mu, sigma)
 
-        return pi
+
+class RandomAcquisition(BaseAcquisition):
+    """
+    Random acquisition function.
+
+    This class implements the Random acquisition strategy, which selects candidates
+    randomly.
+    """
+
+    def acquire(self, mu: np.ndarray, sigma: np.ndarray, best_f: float) -> np.ndarray:
+        """
+        Compute the Random scores for candidate points.
+
+        Args:
+            mu (np.ndarray): Mean predictions for the candidates.
+            sigma (np.ndarray): Standard deviation of predictions for the candidates.
+            best_f (float): The current best observed value (not used in Random).
+
+        Returns:
+            np.ndarray: Random scores for each candidate point.
+        """
+        return np.random.rand(len(mu))
+
+
+class GreedyAcquisition(BaseAcquisition):
+    """
+    Greedy acquisition function.
+
+    This class implements the Greedy acquisition strategy, which selects candidates
+    with the highest mean prediction.
+    """
+
+    def acquire(self, mu: np.ndarray, sigma: np.ndarray, best_f: float) -> np.ndarray:
+        """
+        Compute the Greedy scores for candidate points.
+
+        Args:
+            mu (np.ndarray): Mean predictions for the candidates.
+            sigma (np.ndarray): Standard deviation of predictions for the candidates.
+            best_f (float): The current best observed value (not used in Greedy).
+
+        Returns:
+            np.ndarray: Greedy scores for each candidate point.
+        """
+        return mu

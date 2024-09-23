@@ -61,6 +61,12 @@ def get_acquisition(config: OptimizationConfig):
         return UCBAcquisition(config)
     elif config.acquisition_type == 'ei':
         return ExpectedImprovementAcquisition(config)
+    elif config.acquisition_type == 'ts':
+        return ThompsonSamplingAcquisition(config)
+    elif config.acquisition_type == 'greedy':
+        return GreedyAcquisition(config)
+    elif config.acquisition_type == 'random':
+        return RandomAcquisition(config)
     else:
         raise ValueError(f"Unknown acquisition type: {config.acquisition_type}")
 

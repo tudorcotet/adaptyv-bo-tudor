@@ -100,6 +100,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     config = OptimizationConfig(**{k: v for k, v in vars(args).items() if k in OptimizationConfig.__dataclass_fields__})
-    config = OptimizationConfig()
     run_multiple_seeds(config)
-

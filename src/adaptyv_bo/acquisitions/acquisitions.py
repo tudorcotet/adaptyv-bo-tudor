@@ -47,6 +47,17 @@ class ExpectedImprovementAcquisition(BaseAcquisition):
     that are expected to improve upon the current best observed value.
     """
 
+    def __init__(self, config: AcquisitionConfig):
+        """
+        Initialize the EI acquisition function.
+
+        Args:
+            config (AcquisitionConfig): Configuration object containing
+                optimization parameters, including the xi value for EI.
+        """
+        super().__init__(config)
+        self.xi = config.xi
+
     def acquire(self, mu: np.ndarray, sigma: np.ndarray, best_f: float) -> np.ndarray:
         """
         Compute the Expected Improvement scores for candidate points.
@@ -55,14 +66,13 @@ class ExpectedImprovementAcquisition(BaseAcquisition):
             mu (np.ndarray): Mean predictions for the candidates.
             sigma (np.ndarray): Standard deviation of predictions for the candidates.
             best_f (float): The current best observed value.
-
         Returns:
             np.ndarray: EI scores for each candidate point.
         """
         with np.errstate(divide='ignore'):
-            imp = mu - best_f
+            imp = mu - best_f - self.xi
             Z = imp / sigma
-            ei = imp * norm.cdf(Z) + sigma * norm.pdf(Z)
+            ei = imp * norm.cdf(Z) + sigma * norm.pdf(Z)    
             ei[sigma == 0.0] = 0.0
 
         return ei
@@ -134,3 +144,4 @@ class GreedyAcquisition(BaseAcquisition):
             np.ndarray: Greedy scores for each candidate point.
         """
         return mu
+

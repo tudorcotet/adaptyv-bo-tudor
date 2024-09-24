@@ -42,6 +42,7 @@ class GPSurrogate(BaseSurrogate):
         self.model = None
         self.likelihood = None
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.kernel_type = config.kernel_type  # Add this line
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> None:
         """
@@ -55,7 +56,7 @@ class GPSurrogate(BaseSurrogate):
         y_train = torch.FloatTensor(y).to(self.device)
 
         self.likelihood = gpytorch.likelihoods.GaussianLikelihood().to(self.device)
-        self.model = CustomGPModel(X_train, y_train, self.likelihood, self.config.kernel_type).to(self.device)
+        self.model = CustomGPModel(X_train, y_train, self.likelihood, self.kernel_type).to(self.device)
         self.model.train()
         self.likelihood.train()
 

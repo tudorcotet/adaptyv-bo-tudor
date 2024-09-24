@@ -33,7 +33,7 @@ def run_single_seed(output_dir: str, seed: int, config: OptimizationConfig, benc
     initial_sequences: List[str] = np.random.choice(list(benchmark_data.keys()), size=config.general_config.n_initial, replace=False).tolist()
 
     # Initialize the sequence generator
-    generator: BaseGenerator = get_generator(config.generator_config, benchmark_data, initial_sequences)
+    generator: BaseGenerator = get_generator(config.generator_config, benchmark_data)
 
     # Create the surrogate model
     surrogate: BaseSurrogate = get_surrogate(config.surrogate_config)
@@ -108,7 +108,7 @@ def run_multiple_seeds(config: OptimizationConfig):
         # Plot average results
         combined_plots_dir = os.path.join(combined_dir, "plots")
         os.makedirs(combined_plots_dir, exist_ok=True)
-        average_plotter.plot_average_results(fitness_by_seed, combined_plots_dir)
+        average_plotter.plot_max_average_fitness(fitness_by_seed, combined_plots_dir)
     else:
         print("No results to combine.")
 
@@ -126,8 +126,10 @@ if __name__ == "__main__":
 
     # Define different configurations
     acquisition_types = ['ucb', 'ts', 'greedy', 'random']
+    #acquisition_types = ['ucb']
     surrogate_types = ['gp']
     kernel_types = ['rbf', 'matern']
+    #kernel_types = ['rbf']
     output_dir = "output_benchmark_configs"
     configs = []
     for acquisition_type in acquisition_types:
@@ -153,3 +155,15 @@ if __name__ == "__main__":
         run_multiple_seeds(cfg)
 
     print("\nAll configurations completed.")
+
+    # After running all seeds and collecting results
+    #all_results = []
+   # for seed in range(config.general_config.n_seeds):
+        #seed_results = pd.read_csv(f"output_dir/seed_{seed}/csv/seed_{seed}_results.csv")
+        #all_results.append(seed_results)
+
+    #combined_results_df = pd.concat(all_results, ignore_index=True)
+
+    # Now plot the average max fitness
+    #plotter = SimplePlotter(get_encoding(config.encoding_config))
+    #plotter.plot_average_max_fitness(combined_results_df, "output_dir")

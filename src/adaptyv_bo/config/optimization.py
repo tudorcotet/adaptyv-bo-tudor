@@ -31,6 +31,7 @@ class AcquisitionConfig:
     """
     acquisition_type: str = 'greedy'
     beta: float = 2.0
+    xi: float = 0.01
 
 @dataclass
 class GeneratorConfig:
@@ -39,7 +40,7 @@ class GeneratorConfig:
     """
     generator_type: str = 'benchmark'
     indices_to_mutate: Optional[List[int]] = None
-    n_candidates: int = 10
+    n_candidates: str = 'all' #add option to generate all candidates once
     alphabet: str = 'ACDEFGHIKLMNPQRSTVWY'
     sequence_length: int = 10
 
@@ -72,7 +73,7 @@ class ModalConfig:
 @dataclass
 class MLflowConfig:
     tracking_uri: str = "http://localhost:5080"
-    experiment_name: str = "testing"
+    experiment_name: str = "testing1"
     log_params: bool = True
     log_model_summary: bool = True
     log_model_graph: bool = True
@@ -91,7 +92,7 @@ class DataConfig:
     """
     Configuration class for benchmark parameters.
     """
-    benchmark_file: str = '/Users/tudorcotet/Desktop/small_gb1.csv'
+    benchmark_file: str = '/Users/tudorcotet/Documents/Adaptyv/adaptyv-bo-tudor/src/adaptyv_bo/data/datasets/gb1/gb1_3site.csv'
 
 
 @dataclass

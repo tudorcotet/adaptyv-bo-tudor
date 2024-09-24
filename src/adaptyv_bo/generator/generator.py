@@ -16,13 +16,13 @@ class CombinatorialGenerator(BaseGenerator):
         all_candidates (List[str]): List of all possible candidate sequences.
     """
 
-    def __init__(self, config: GeneratorConfig, initial_sequences: List[str], indices_to_mutate: Optional[List[int]] = None):
+    def __init__(self, config: GeneratorConfig, indices_to_mutate: Optional[List[int]] = None):
         super().__init__(config)
         self.alphabet = list(config.alphabet)
-        self.sequences = initial_sequences
-        self.acquired_sequences = set(initial_sequences)
+        self.sequences = []
+        self.acquired_sequences = set()
         self.indices_to_mutate = indices_to_mutate
-        self.all_candidates = self.generate_all()
+        self.all_candidates = []
 
     def generate(self, n_candidates: int) -> List[str]:
         """
@@ -93,16 +93,14 @@ class BenchmarkGenerator(BaseGenerator):
     A generator that selects sequences from a predefined benchmark dataset.
 
     Attributes:
-        benchmark_sequences (List[str]): List of all sequences in the benchmark dataset.
         acquired_sequences (Set[str]): Set of sequences that have been generated.
         all_candidates (List[str]): List of all possible candidate sequences.
     """
 
-    def __init__(self, config: GeneratorConfig, benchmark_data: Dict[str, float], initial_sequences: List[str]):
+    def __init__(self, config: GeneratorConfig, benchmark_data: Dict[str, float]):
         super().__init__(config)
-        self.benchmark_sequences = list(benchmark_data.keys())
-        self.acquired_sequences = set(initial_sequences)
-        self.all_candidates = self.generate_all()
+        self.acquired_sequences = set()
+        self.all_candidates = list(benchmark_data.keys())
 
     def generate(self, n_candidates: int) -> List[str]:
         """
@@ -114,6 +112,8 @@ class BenchmarkGenerator(BaseGenerator):
         Returns:
             List[str]: List of generated candidate sequences.
         """
+        if isinstance(n_candidates, str) and n_candidates.lower() == 'all':
+            return self.generate_all()
         available_candidates = [c for c in self.all_candidates if c not in self.acquired_sequences]
         selected = random.sample(available_candidates, min(n_candidates, len(available_candidates)))
         return selected
@@ -125,10 +125,11 @@ class BenchmarkGenerator(BaseGenerator):
         Returns:
             List[str]: List of all possible candidate sequences.
         """
-        available_candidates = [seq for seq in self.benchmark_sequences if seq not in self.acquired_sequences]
+
+        available_candidates = [seq for seq in self.all_candidates if seq not in self.acquired_sequences]
         if not available_candidates:
             self.logger.warning("All benchmark sequences have been acquired. Returning all sequences.")
-            return self.benchmark_sequences
+            return self.all_candidates
         return available_candidates
 
     def update_sequences(self, new_sequences: List[str]):
@@ -151,11 +152,11 @@ class MutationGenerator(BaseGenerator):
         candidate_pool (List[str]): Pool of candidate sequences.
     """
 
-    def __init__(self, config: GeneratorConfig, initial_sequences: List[str]):
+    def __init__(self, config: GeneratorConfig):
         super().__init__(config)
         self.alphabet = list(config.alphabet)
-        self.sequences = initial_sequences
-        self.acquired_sequences = set(initial_sequences)
+        self.sequences = []
+        self.acquired_sequences = set()
         self.candidate_pool = []
 
     def generate(self, n_candidates: int) -> List[str]:

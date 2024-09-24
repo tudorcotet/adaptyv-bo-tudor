@@ -90,14 +90,13 @@ def get_encoding(config: EncodingConfig):
     else:
         raise ValueError(f"Unknown encoding type: {config.encoding_type}")
 
-def get_generator(config: GeneratorConfig, benchmark_data: Dict[str, float], initial_sequences: List[str]) -> BaseGenerator:
+def get_generator(config: GeneratorConfig, benchmark_data: Dict[str, float]) -> BaseGenerator:
     """
     Get the sequence generator based on the configuration.
 
     Args:
         config (GeneratorConfig): The generator configuration.
         benchmark_data (Dict[str, float]): The benchmark data.
-        initial_sequences (List[str]): The initial sequences.
 
     Returns:
         BaseGenerator: An instance of the specified generator.
@@ -106,10 +105,10 @@ def get_generator(config: GeneratorConfig, benchmark_data: Dict[str, float], ini
         ValueError: If an unknown generator type is specified.
     """
     if config.generator_type == 'combinatorial':
-        return CombinatorialGenerator(config, initial_sequences, config.indices_to_mutate)
+        return CombinatorialGenerator(config, config.indices_to_mutate)
     elif config.generator_type == 'benchmark':
-        return BenchmarkGenerator(config, benchmark_data, initial_sequences)
+        return BenchmarkGenerator(config, benchmark_data)
     elif config.generator_type == 'mutation':
-        return MutationGenerator(config, initial_sequences)
+        return MutationGenerator(config)
     else:
         raise ValueError(f"Unknown generator type: {config.generator_type}")

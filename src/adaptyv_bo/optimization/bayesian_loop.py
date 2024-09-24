@@ -81,7 +81,7 @@ class BayesianOptimizationLoop:
         """Initialize the optimization process with a set of initial sequences."""
 
         # Generate initial sequences
-        initial_sequences = self.generator.generate(self.config.generator_config.n_candidates)
+        initial_sequences = self.generator.generate(self.config.general_config.n_initial)
         initial_fitness = self.query.query(initial_sequences)
         self.sequences.extend(initial_sequences)
         self.encoded_sequences.extend(self.encoding.encode(initial_sequences))
@@ -89,6 +89,9 @@ class BayesianOptimizationLoop:
         self.rounds.extend([0] * len(initial_sequences))
         self.acquired_sequences.update(initial_sequences)
         self.max_fitness = max(initial_fitness)
+
+        #update the generator with the initial sequences
+        self.generator.update_sequences(initial_sequences)
 
         # Start the MLflow run
         def get_experiment_string(config, seed):
@@ -113,15 +116,15 @@ class BayesianOptimizationLoop:
         self.tracker.log_params({
             "acquisition_function": self.acquisition.__class__.__name__,
             "surrogate_model": self.surrogate.__class__.__name__,
-                "encoding_method": self.encoding.__class__.__name__,
-                "generator_type": self.generator.__class__.__name__,
-                "kernel_type": self.surrogate.kernel_type
-            })
+            "encoding_method": self.encoding.__class__.__name__,
+            "generator_type": self.generator.__class__.__name__,
+            "kernel_type": self.config.surrogate_config.kernel_type
+        })
 
         # Log initial metrics
-        initial_fitness_values = self.fitness_values[:self.config.generator_config.n_candidates]
-        self._log_metrics(0, initial_fitness_values, self.sequences[:self.config.generator_config.n_candidates], 
-                              np.zeros(self.config.generator_config.n_candidates), 0.0, 0.0)
+        initial_fitness_values = self.fitness_values[:self.config.general_config.n_initial]
+        self._log_metrics(0, initial_fitness_values, self.sequences[:self.config.general_config.n_initial], 
+                              np.zeros(self.config.general_config.n_initial), 0.0, 0.0)
 
         for iteration in range(self.config.general_config.n_iterations):
             start_time = time.time()
@@ -153,6 +156,7 @@ class BayesianOptimizationLoop:
 
     def generate_and_evaluate_candidates(self):
         candidates = self.generator.generate(self.config.generator_config.n_candidates)
+        
         if not candidates:
             self.logger.warning(f"No new candidates generated. Using existing candidates.")
             candidates = self.sequences
@@ -216,9 +220,8 @@ class BayesianOptimizationLoop:
 
     def plot_results(self):
         """Generate plots of the optimization results."""
-
-        self.plotter.plot_embeddings(self.sequences, self.fitness_values, self.rounds, self.seed_output_dir)
-        self.plotter.plot_max_fitness(self.fitness_values, self.seed_output_dir)
+        self.get_results()  # Ensure the results DataFrame is populated
+        self.plotter.plot_max_fitness(self.seed_results_df, self.seed_output_dir)
         self.plotter.plot_training_loss(self.train_losses, self.val_losses, self.seed_output_dir)
         self.plotter.plot_validation_loss(self.val_losses, self.seed_output_dir)    
 

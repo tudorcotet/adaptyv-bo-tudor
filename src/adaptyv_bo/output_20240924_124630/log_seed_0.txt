@@ -11,3 +11,18 @@
 2024-09-24 12:48:35,357 - BayesianOpt_Seed_0 - ERROR - Failed to log final results to MLflow: API request to http://localhost:5050/api/2.0/mlflow/runs/log-batch failed with exception HTTPConnectionPool(host='localhost', port=5050): Max retries exceeded with url: /api/2.0/mlflow/runs/log-batch (Caused by ResponseError('too many 500 error responses'))
 2024-09-24 12:48:35,361 - BayesianOpt_Seed_0 - INFO - Seed 0 results saved to output_20240924_124630/csv/seed_0_results.csv
 2024-09-24 12:48:35,621 - BayesianOpt_Seed_0 - INFO - Iteration 4 completed. Current max fitness: 3.68714212514
+2024-09-24 12:49:38,127 - BayesianOpt_Seed_0 - ERROR - Failed to log final results to MLflow: API request to http://localhost:5050/api/2.0/mlflow/runs/log-batch failed with exception HTTPConnectionPool(host='localhost', port=5050): Max retries exceeded with url: /api/2.0/mlflow/runs/log-batch (Caused by ResponseError('too many 500 error responses'))
+2024-09-24 12:49:38,129 - BayesianOpt_Seed_0 - INFO - Seed 0 results saved to output_20240924_124630/csv/seed_0_results.csv
+2024-09-24 12:49:38,334 - BayesianOpt_Seed_0 - INFO - Iteration 5 completed. Current max fitness: 3.68714212514
+2024-09-24 12:50:40,535 - BayesianOpt_Seed_0 - ERROR - Failed to log final results to MLflow: API request to http://localhost:5050/api/2.0/mlflow/runs/log-batch failed with exception HTTPConnectionPool(host='localhost', port=5050): Max retries exceeded with url: /api/2.0/mlflow/runs/log-batch (Caused by ResponseError('too many 500 error responses'))
+2024-09-24 12:50:40,537 - BayesianOpt_Seed_0 - INFO - Seed 0 results saved to output_20240924_124630/csv/seed_0_results.csv
+2024-09-24 12:50:40,799 - BayesianOpt_Seed_0 - INFO - Iteration 6 completed. Current max fitness: 3.68714212514
+2024-09-24 12:51:42,910 - BayesianOpt_Seed_0 - ERROR - Failed to log final results to MLflow: API request to http://localhost:5050/api/2.0/mlflow/runs/log-batch failed with exception HTTPConnectionPool(host='localhost', port=5050): Max retries exceeded with url: /api/2.0/mlflow/runs/log-batch (Caused by ResponseError('too many 500 error responses'))
+2024-09-24 12:51:42,913 - BayesianOpt_Seed_0 - INFO - Seed 0 results saved to output_20240924_124630/csv/seed_0_results.csv
+2024-09-24 12:51:43,157 - BayesianOpt_Seed_0 - INFO - Iteration 7 completed. Current max fitness: 3.68714212514
+2024-09-24 12:52:45,548 - BayesianOpt_Seed_0 - ERROR - Failed to log final results to MLflow: API request to http://localhost:5050/api/2.0/mlflow/runs/log-batch failed with exception HTTPConnectionPool(host='localhost', port=5050): Max retries exceeded with url: /api/2.0/mlflow/runs/log-batch (Caused by ResponseError('too many 500 error responses'))
+2024-09-24 12:52:45,549 - BayesianOpt_Seed_0 - INFO - Seed 0 results saved to output_20240924_124630/csv/seed_0_results.csv
+2024-09-24 12:52:45,786 - BayesianOpt_Seed_0 - INFO - Iteration 8 completed. Current max fitness: 3.68714212514
+2024-09-24 12:53:47,196 - BayesianOpt_Seed_0 - ERROR - Failed to log final results to MLflow: API request to http://localhost:5050/api/2.0/mlflow/runs/log-batch failed with exception HTTPConnectionPool(host='localhost', port=5050): Max retries exceeded with url: /api/2.0/mlflow/runs/log-batch (Caused by ResponseError('too many 500 error responses'))
+2024-09-24 12:53:47,199 - BayesianOpt_Seed_0 - INFO - Seed 0 results saved to output_20240924_124630/csv/seed_0_results.csv
+2024-09-24 12:53:47,447 - BayesianOpt_Seed_0 - INFO - Iteration 9 completed. Current max fitness: 3.68714212514

@@ -39,7 +39,7 @@ class GeneratorConfig:
     """
     generator_type: str = 'benchmark'
     indices_to_mutate: Optional[List[int]] = None
-    n_candidates: int = 1000
+    n_candidates: int = 10
     alphabet: str = 'ACDEFGHIKLMNPQRSTVWY'
     sequence_length: int = 10
 
@@ -71,7 +71,7 @@ class ModalConfig:
 
 @dataclass
 class MLflowConfig:
-    tracking_uri: str = "http://localhost:5060"
+    tracking_uri: str = "http://localhost:5080"
     experiment_name: str = "testing"
     log_params: bool = True
     log_model_summary: bool = True
@@ -104,3 +104,6 @@ class OptimizationConfig:
     mlflow_config: MLflowConfig = MLflowConfig()    
     data_config: DataConfig = DataConfig()
     encoding_config: EncodingConfig = EncodingConfig()
+
+    output_dir = 'output'
+    

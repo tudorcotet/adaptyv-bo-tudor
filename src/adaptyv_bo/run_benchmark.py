@@ -73,7 +73,7 @@ def run_multiple_seeds(config: OptimizationConfig):
     """
     benchmark_data = load_benchmark_data(config.data_config.benchmark_file)
     all_results: List[pd.DataFrame] = []
-    output_dir = f"output_benchmark_{int(time.time())}"
+    output_dir = config.output_dir
     os.makedirs(output_dir, exist_ok=True)
 
     with mp.Pool(processes=config.general_config.n_seeds) as pool:
@@ -125,10 +125,10 @@ if __name__ == "__main__":
     #run_multiple_seeds(config)
 
     # Define different configurations
-    acquisition_types = ['ucb', 'ei', 'ts', 'greedy', 'random']
+    acquisition_types = ['ucb', 'ts', 'greedy', 'random']
     surrogate_types = ['gp']
-    kernel_types = ['rbf', 'matern', 'rational_quadratic']
-
+    kernel_types = ['rbf', 'matern']
+    output_dir = "output_benchmark_configs"
     configs = []
     for acquisition_type in acquisition_types:
         for surrogate_type in surrogate_types:
@@ -145,10 +145,11 @@ if __name__ == "__main__":
         print(f"\nRunning configuration {i+1}/{len(configs)}:")
         print(f"Acquisition: {cfg.acquisition_config.acquisition_type}")
         print(f"Surrogate: {cfg.surrogate_config.surrogate_type}")
+        print(f"Kernel: {cfg.surrogate_config.kernel_type}")
         
-        config_output_dir = os.path.join(output_dir, f"config_{i+1}")
+        config_output_dir = os.path.join(output_dir, f"acquisition_{cfg.acquisition_config.acquisition_type}_surrogate_{cfg.surrogate_config.surrogate_type}_kernel_{cfg.surrogate_config.kernel_type}")
         os.makedirs(config_output_dir, exist_ok=True)
-        
-        run_multiple_seeds(cfg, config_output_dir)
+        cfg.output_dir = config_output_dir
+        run_multiple_seeds(cfg)
 
     print("\nAll configurations completed.")

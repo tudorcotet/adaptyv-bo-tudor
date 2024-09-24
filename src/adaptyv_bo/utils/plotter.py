@@ -165,8 +165,12 @@ class SimplePlotter(BasePlotter):
         Args:
             all_max_fitness (List[List[float]]): List of maximum fitness progressions for each run.
         """
-        avg_max_fitness_per_round = np.mean(all_max_fitness, axis=0)
-        std_max_fitness_per_round = np.std(all_max_fitness, axis=0)
+        # Ensure all_max_fitness is a 2D array with equal length sublists
+        max_length = max(len(fitness) for fitness in all_max_fitness)
+        padded_all_max_fitness = [fitness + [0] * (max_length - len(fitness)) for fitness in all_max_fitness]
+
+        avg_max_fitness_per_round = np.mean(padded_all_max_fitness, axis=0)
+        std_max_fitness_per_round = np.std(padded_all_max_fitness, axis=0)
 
         plt.figure(figsize=(10, 6))
         plt.plot(range(len(avg_max_fitness_per_round)), avg_max_fitness_per_round, label='Average')

@@ -91,7 +91,10 @@ class BayesianOptimizationLoop:
         self.max_fitness = max(initial_fitness)
 
         # Start the MLflow run
-        self.tracker.start_run(f"time@{int(time.time())}_surrogate@{self.config.surrogate_config.surrogate_type}_acquisition@{self.config.acquisition_config.acquisition_type}_encoding@{self.config.encoding_config.encoding_type.replace('_','')}_generator@{self.config.generator_config.generator_type}_seed@{self.seed}")
+        def get_experiment_string(config, seed):
+            return f"experiment@{config.mlflow_config.experiment_name}_time@{int(time.time())}_surrogate@{config.surrogate_config.surrogate_type}_acquisition@{config.acquisition_config.acquisition_type}_encoding@{config.encoding_config.encoding_type.replace('_','')}_generator@{config.generator_config.generator_type}_kernel@{config.surrogate_config.kernel_type}_seed@{seed}"
+        
+        self.tracker.start_run(get_experiment_string(self.config, self.seed))
         
         self.logger.info(f"Initialization complete. Max fitness: {self.max_fitness}")
         self.logger.info(f"Initial sequences: {initial_sequences}")
@@ -111,7 +114,8 @@ class BayesianOptimizationLoop:
             "acquisition_function": self.acquisition.__class__.__name__,
             "surrogate_model": self.surrogate.__class__.__name__,
                 "encoding_method": self.encoding.__class__.__name__,
-                "generator_type": self.generator.__class__.__name__
+                "generator_type": self.generator.__class__.__name__,
+                "kernel_type": self.surrogate.kernel_type
             })
 
         # Log initial metrics
@@ -229,9 +233,10 @@ class BayesianOptimizationLoop:
                 'Sequence': self.sequences,
                 'Fitness': self.fitness_values,
                 'Surrogate': self.config.surrogate_config.surrogate_type,
+                'Kernel': self.config.surrogate_config.kernel_type,
                 'Acquisition': self.config.acquisition_config.acquisition_type,
                 'Encoding': self.config.encoding_config.encoding_type,
-                'Generator': self.config.generator_config.generator_type
+                'Generator': self.config.generator_config.generator_type,
             })
 
     def save_results_to_csv(self):

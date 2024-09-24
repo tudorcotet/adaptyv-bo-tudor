@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List
 import torch
-from config.optimization import OptimizationConfig
+from config.optimization import EncodingConfig
 
 class BaseEncoding(ABC):
     """
@@ -15,12 +15,12 @@ class BaseEncoding(ABC):
             optimization parameters.
     """
 
-    def __init__(self, config: OptimizationConfig):
+    def __init__(self, config: EncodingConfig):
         """
         Initialize the BaseEncoding object.
 
         Args:
-            config (OptimizationConfig): Configuration object containing
+            config (EncodingConfig): Configuration object containing
                 optimization parameters.
         """
         self.config = config

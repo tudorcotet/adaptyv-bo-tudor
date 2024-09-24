@@ -1,7 +1,7 @@
 import random
 import itertools
 from typing import List, Dict, Optional
-from config.optimization import OptimizationConfig
+from config.optimization import GeneratorConfig
 from generator.base import BaseGenerator
 
 class CombinatorialGenerator(BaseGenerator):
@@ -16,7 +16,7 @@ class CombinatorialGenerator(BaseGenerator):
         all_candidates (List[str]): List of all possible candidate sequences.
     """
 
-    def __init__(self, config: OptimizationConfig, initial_sequences: List[str], indices_to_mutate: Optional[List[int]] = None):
+    def __init__(self, config: GeneratorConfig, initial_sequences: List[str], indices_to_mutate: Optional[List[int]] = None):
         super().__init__(config)
         self.alphabet = list(config.alphabet)
         self.sequences = initial_sequences
@@ -98,7 +98,7 @@ class BenchmarkGenerator(BaseGenerator):
         all_candidates (List[str]): List of all possible candidate sequences.
     """
 
-    def __init__(self, config: OptimizationConfig, benchmark_data: Dict[str, float], initial_sequences: List[str]):
+    def __init__(self, config: GeneratorConfig, benchmark_data: Dict[str, float], initial_sequences: List[str]):
         super().__init__(config)
         self.benchmark_sequences = list(benchmark_data.keys())
         self.acquired_sequences = set(initial_sequences)
@@ -151,7 +151,7 @@ class MutationGenerator(BaseGenerator):
         candidate_pool (List[str]): Pool of candidate sequences.
     """
 
-    def __init__(self, config: OptimizationConfig, initial_sequences: List[str]):
+    def __init__(self, config: GeneratorConfig, initial_sequences: List[str]):
         super().__init__(config)
         self.alphabet = list(config.alphabet)
         self.sequences = initial_sequences

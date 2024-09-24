@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import List
-from config.optimization import OptimizationConfig
+from config.optimization import GeneratorConfig
 
 class BaseGenerator(ABC):
-    def __init__(self, config: OptimizationConfig):
+    def __init__(self, config: GeneratorConfig):
         self.config = config
 
     @abstractmethod

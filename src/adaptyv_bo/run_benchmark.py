@@ -18,31 +18,31 @@ import time
 
 
 def run_single_seed(output_dir: str, seed: int, config: OptimizationConfig, benchmark_data) -> pd.DataFrame:
-    config.seed = seed
+    config.general_config.seed = seed
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
 
     # Initialize the acquisition function
-    acquisition: BaseAcquisition = get_acquisition(config)
+    acquisition: BaseAcquisition = get_acquisition(config.acquisition_config)
 
     # Create a query object for the benchmark data
-    query: BenchmarkQuery = BenchmarkQuery(config, benchmark_data)
+    query: BenchmarkQuery = BenchmarkQuery(config.query_config, benchmark_data)
 
     # Randomly select initial sequences from the benchmark data
-    initial_sequences: List[str] = np.random.choice(list(benchmark_data.keys()), size=config.n_initial, replace=False).tolist()
+    initial_sequences: List[str] = np.random.choice(list(benchmark_data.keys()), size=config.general_config.n_initial, replace=False).tolist()
 
     # Initialize the sequence generator
-    generator: BaseGenerator = get_generator(config, benchmark_data, initial_sequences)
+    generator: BaseGenerator = get_generator(config.generator_config, benchmark_data, initial_sequences)
 
     # Create the surrogate model
-    surrogate: BaseSurrogate = get_surrogate(config)
+    surrogate: BaseSurrogate = get_surrogate(config.surrogate_config)
 
     # Initialize the sequence encoding method
-    encoding: BaseEncoding = get_encoding(config)
+    encoding: BaseEncoding = get_encoding(config.encoding_config)
 
     # Create a plotter object for visualizing results
-    plotter: SimplePlotter = SimplePlotter(config, encoding)
+    plotter: SimplePlotter = SimplePlotter(encoding)
 
     # Initialize the Bayesian optimization loop
     loop: BayesianOptimizationLoop = BayesianOptimizationLoop(config, acquisition, query, generator, surrogate, encoding, plotter, output_dir)
@@ -71,13 +71,13 @@ def run_multiple_seeds(config: OptimizationConfig):
     Returns:
         None
     """
-    benchmark_data = load_benchmark_data(config.benchmark_file)
+    benchmark_data = load_benchmark_data(config.data_config.benchmark_file)
     all_results: List[pd.DataFrame] = []
     output_dir = f"output_benchmark_{int(time.time())}"
     os.makedirs(output_dir, exist_ok=True)
 
     with mp.Pool(processes=mp.cpu_count()) as pool:
-        results = [pool.apply_async(run_single_seed, args=(output_dir, seed, config, benchmark_data)) for seed in range(config.n_seeds)]
+        results = [pool.apply_async(run_single_seed, args=(output_dir, seed, config, benchmark_data)) for seed in range(config.general_config.n_seeds)]
         for result in results:
             try:
                 seed_result = result.get()
@@ -99,11 +99,11 @@ def run_multiple_seeds(config: OptimizationConfig):
         print(f"Combined results saved to {combined_csv_path}")
 
         # Create a new plotter for the average results
-        average_plotter = SimplePlotter(config, get_encoding(config))
+        average_plotter = SimplePlotter(get_encoding(config.encoding_config))
 
         # Extract fitness values for each seed
         fitness_by_seed = [combined_results[combined_results['Seed'] == seed]['Fitness'].tolist()
-                           for seed in range(config.n_seeds)]
+                           for seed in range(config.general_config.n_seeds)]
 
         # Plot average results
         combined_plots_dir = os.path.join(combined_dir, "plots")
@@ -122,5 +122,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     config = OptimizationConfig(**{k: v for k, v in vars(args).items() if k in OptimizationConfig.__dataclass_fields__})
-    config = OptimizationConfig(n_seeds=5)
     run_multiple_seeds(config)

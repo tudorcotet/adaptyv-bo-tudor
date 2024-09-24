@@ -4,7 +4,7 @@ from typing import Any, List
 import numpy as np
 import torch
 
-from config.optimization import OptimizationConfig
+from config.optimization import AcquisitionConfig
 
 
 class BaseAcquisition(ABC):
@@ -18,12 +18,12 @@ class BaseAcquisition(ABC):
         config (OptimizationConfig): Configuration object containing optimization parameters.
     """
 
-    def __init__(self, config: OptimizationConfig):
+    def __init__(self, config: AcquisitionConfig):
         """
         Initialize the BaseAcquisition object.
 
         Args:
-            config (OptimizationConfig): Configuration object containing optimization parameters.
+            config (AcquisitionConfig): Configuration object containing optimization parameters.
         """
         self.config = config
 

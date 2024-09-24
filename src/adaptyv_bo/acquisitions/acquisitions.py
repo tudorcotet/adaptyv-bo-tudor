@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from scipy.stats import norm
 from abc import ABC, abstractmethod
-from config.optimization import OptimizationConfig
+from config.optimization import AcquisitionConfig
 from acquisitions.base import BaseAcquisition
 
 class UCBAcquisition(BaseAcquisition):
@@ -14,12 +14,12 @@ class UCBAcquisition(BaseAcquisition):
     mean and high uncertainty.
     """
 
-    def __init__(self, config: OptimizationConfig):
+    def __init__(self, config: AcquisitionConfig):
         """
         Initialize the UCB acquisition function.
 
         Args:
-            config (OptimizationConfig): Configuration object containing
+            config (AcquisitionConfig): Configuration object containing
                 optimization parameters, including the beta value for UCB.
         """
         super().__init__(config)

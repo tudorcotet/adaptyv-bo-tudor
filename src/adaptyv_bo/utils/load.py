@@ -5,6 +5,7 @@ from surrogates.gp import GPSurrogate
 from acquisitions.acquisitions import *
 from encoding.onehot import *
 from generator.generator import *
+from config.optimization import *
 
 def load_benchmark_data(file_path: str) -> Dict[str, float]:
     """
@@ -25,7 +26,7 @@ def load_benchmark_data(file_path: str) -> Dict[str, float]:
     return df.set_index('sequence')['fitness'].to_dict()
 
 
-def get_surrogate(config: OptimizationConfig):
+def get_surrogate(config: SurrogateConfig):
     """
     Get the surrogate model based on the configuration.
 
@@ -44,7 +45,7 @@ def get_surrogate(config: OptimizationConfig):
     else:
         raise ValueError(f"Unknown surrogate type: {config.surrogate_type}")
 
-def get_acquisition(config: OptimizationConfig):
+def get_acquisition(config: AcquisitionConfig):
     """
     Get the acquisition function based on the configuration.
 
@@ -70,7 +71,7 @@ def get_acquisition(config: OptimizationConfig):
     else:
         raise ValueError(f"Unknown acquisition type: {config.acquisition_type}")
 
-def get_encoding(config: OptimizationConfig):
+def get_encoding(config: EncodingConfig):
     """
     Get the encoding method based on the configuration.
 
@@ -83,18 +84,18 @@ def get_encoding(config: OptimizationConfig):
     Raises:
         ValueError: If an unknown encoding type is specified.
     """
-    if config.encoding_type == 'one_hot':
+    if config.encoding_type == 'onehot':
         return OneHotEncoding(config)
     # Add other encoding types here
     else:
         raise ValueError(f"Unknown encoding type: {config.encoding_type}")
 
-def get_generator(config: OptimizationConfig, benchmark_data: Dict[str, float], initial_sequences: List[str]) -> BaseGenerator:
+def get_generator(config: GeneratorConfig, benchmark_data: Dict[str, float], initial_sequences: List[str]) -> BaseGenerator:
     """
     Get the sequence generator based on the configuration.
 
     Args:
-        config (OptimizationConfig): The optimization configuration.
+        config (GeneratorConfig): The generator configuration.
         benchmark_data (Dict[str, float]): The benchmark data.
         initial_sequences (List[str]): The initial sequences.
 

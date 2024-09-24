@@ -6,7 +6,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from sklearn.decomposition import PCA
-from config.optimization import OptimizationConfig
 from encoding.base import BaseEncoding
 
 class BasePlotter(ABC):
@@ -16,18 +15,10 @@ class BasePlotter(ABC):
     This class defines the interface for plotting various aspects of the optimization process,
     including sequence embeddings, fitness progression, and average results across multiple runs.
 
-    Attributes:
-        config (OptimizationConfig): Configuration object containing optimization parameters.
     """
 
-    def __init__(self, config: OptimizationConfig):
-        """
-        Initialize the BasePlotter object.
-
-        Args:
-            config (OptimizationConfig): Configuration object containing optimization parameters.
-        """
-        self.config = config
+    def __init__(self):
+        pass
 
     @abstractmethod
     def plot_embeddings(self, sequences: List[str], fitness_values: List[float], rounds: List[int]):
@@ -111,20 +102,18 @@ class SimplePlotter(BasePlotter):
     This class provides methods to plot embeddings, max fitness progression, and average results.
 
     Attributes:
-        config (OptimizationConfig): Configuration object containing optimization parameters.
         encoding (BaseEncoding): Encoding object for sequence encoding.
         output_dir (str): Directory path for saving output files.
     """
 
-    def __init__(self, config: OptimizationConfig, encoding: BaseEncoding):
+    def __init__(self, encoding: BaseEncoding):
         """
         Initialize the SimplePlotter object.
 
         Args:
-            config (OptimizationConfig): Configuration object containing optimization parameters.
             encoding (BaseEncoding): Encoding object for sequence encoding.
         """
-        super().__init__(config)
+        super().__init__()
         self.encoding = encoding
     
     def plot_embeddings(self, sequences: List[str], fitness_values: List[float], rounds: List[int], output_dir: str):
@@ -171,26 +160,41 @@ class SimplePlotter(BasePlotter):
 
     def plot_average_results(self, all_max_fitness: List[List[float]], output_dir: str):
         """
-        Plot the average max fitness of all acquired sequences until and including the round, averaged across seeds with standard deviation.
+        Plot the average max fitness of all acquired sequences per round, averaged across seeds with standard deviation.
 
         Args:
             all_max_fitness (List[List[float]]): List of maximum fitness progressions for each run.
         """
-        max_fitness_acquired = [np.maximum.accumulate(fitness) for fitness in all_max_fitness]
-        avg_max_fitness = np.mean(max_fitness_acquired, axis=0)
-        std_max_fitness = np.std(max_fitness_acquired, axis=0)
+        avg_max_fitness_per_round = np.mean(all_max_fitness, axis=0)
+        std_max_fitness_per_round = np.std(all_max_fitness, axis=0)
 
         plt.figure(figsize=(10, 6))
-        plt.plot(range(len(avg_max_fitness)), avg_max_fitness, label='Average')
-        plt.fill_between(range(len(avg_max_fitness)),
-                         avg_max_fitness - std_max_fitness,
-                         avg_max_fitness + std_max_fitness,
+        plt.plot(range(len(avg_max_fitness_per_round)), avg_max_fitness_per_round, label='Average')
+        plt.fill_between(range(len(avg_max_fitness_per_round)),
+                         avg_max_fitness_per_round - std_max_fitness_per_round,
+                         avg_max_fitness_per_round + std_max_fitness_per_round,
                          alpha=0.2)
         plt.xlabel('Round')
         plt.ylabel('Max Fitness')
-        plt.title('Average Max Fitness of All Acquired Sequences Until and Including the Round (with std dev)')
+        plt.title('Average Max Fitness of All Acquired Sequences Per Round (with std dev)')
         plt.legend()
-        plt.savefig(os.path.join(output_dir, 'average_max_fitness.png'))
+        plt.savefig(os.path.join(output_dir, 'average_max_fitness_per_round.png'))
+        plt.close()
+
+    def plot_total_embeddings(self, sequences: List[str], fitness_values: List[float], rounds: List[int], output_dir: str):
+        encoded = self.encoding.encode(sequences)
+        pca = PCA(n_components=2)
+        embedded = pca.fit_transform(encoded)
+
+        fig = plt.figure(figsize=(10, 8))
+        ax = fig.add_subplot(111, projection='3d')
+        scatter = ax.scatter(embedded[:, 0], embedded[:, 1], fitness_values, c=rounds, cmap='viridis')
+        ax.set_xlabel('PCA 1')
+        ax.set_ylabel('PCA 2')
+        ax.set_zlabel('Fitness')
+        ax.set_title('Protein Embeddings')
+        plt.colorbar(scatter, label='Fitness')
+        plt.savefig(os.path.join(output_dir, 'total_embeddings.png'))
         plt.close()
 
     def plot_training_loss(self, training_loss: List[float], validation_loss: List[float], output_dir: str):

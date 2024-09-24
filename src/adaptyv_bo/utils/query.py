@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any
-from config.optimization import OptimizationConfig
+from config.optimization import QueryConfig
 import logging
 from scipy.spatial.distance import cityblock
 from Levenshtein import distance as levenshtein_distance
@@ -14,10 +14,9 @@ class BaseQuery(ABC):
 
     Attributes:
         config (OptimizationConfig): Configuration for optimization.
-        mode (str): The mode of operation, extracted from the config.
     """
 
-    def __init__(self, config: OptimizationConfig):
+    def __init__(self, config: QueryConfig):
         """
         Initialize the BaseQuery.
 
@@ -25,7 +24,6 @@ class BaseQuery(ABC):
             config (OptimizationConfig): Configuration for optimization.
         """
         self.config = config
-        self.mode = config.mode
 
     @abstractmethod
     def query(self, candidates: List[str]) -> List[float]:
@@ -58,19 +56,19 @@ class BenchmarkQuery(BaseQuery):
         logger (logging.Logger): Logger for this class.
     """
 
-    def __init__(self, config: OptimizationConfig, benchmark_data: Dict[str, float]):
+    def __init__(self, config: QueryConfig, benchmark_data: Dict[str, float]):
         """
         Initialize the BenchmarkQuery.
 
         Args:
-            config (OptimizationConfig): Configuration for optimization.
+            config (QueryConfig): Configuration for query.
             benchmark_data (Dict[str, float]): The benchmark data mapping sequences to fitness values.
         """
         super().__init__(config)
         self.benchmark_data = benchmark_data
         self.query_method = config.query_method
-        self.logger = logging.getLogger(f"BenchmarkQuery_Seed_{config.seed}")
-
+        self.logger = logging.getLogger(f"BenchmarkQuery")
+        
     def query(self, candidates: List[str]) -> List[float]:
         """
         Query the fitness values for the given candidates.

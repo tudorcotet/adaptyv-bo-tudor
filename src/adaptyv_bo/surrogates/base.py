@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import torch
 from typing import Any
-from config.optimization import OptimizationConfig
+from config.optimization import SurrogateConfig
 
 class BaseSurrogate(ABC):
     """
@@ -15,7 +15,7 @@ class BaseSurrogate(ABC):
         device (torch.device): The device (CPU or GPU) on which the model will run.
     """
 
-    def __init__(self, config: OptimizationConfig):
+    def __init__(self, config: SurrogateConfig):
         """
         Initialize the BaseSurrogate.
 

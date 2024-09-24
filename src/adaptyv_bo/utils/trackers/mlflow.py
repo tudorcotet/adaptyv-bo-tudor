@@ -2,7 +2,7 @@ import mlflow
 from typing import Dict, Any
 from utils.trackers.base import BaseTracker
 from surrogates.base import BaseSurrogate
-from config.mlflow import MLflowConfig
+from config.optimization import MLflowConfig
 
 class MLflowTracker(BaseTracker):
     def __init__(self, config: MLflowConfig):

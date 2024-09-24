@@ -2,19 +2,28 @@ import torch
 import gpytorch
 import numpy as np
 from typing import Tuple
-from config.optimization import OptimizationConfig
+from config.optimization import SurrogateConfig
 from surrogates.base import BaseSurrogate
 
 class CustomGPModel(gpytorch.models.ExactGP):
     """
     Custom Gaussian Process model using GPyTorch.
 
-    This model uses a constant mean and a scaled RBF kernel.
+    This model uses a constant mean and a configurable kernel.
     """
-    def __init__(self, train_x: torch.Tensor, train_y: torch.Tensor, likelihood: gpytorch.likelihoods.Likelihood):
+    def __init__(self, train_x: torch.Tensor, train_y: torch.Tensor, likelihood: gpytorch.likelihoods.Likelihood, kernel_type: str):
         super(CustomGPModel, self).__init__(train_x, train_y, likelihood)
         self.mean_module = gpytorch.means.ConstantMean()
-        self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel())
+        
+        # Configure kernel based on config
+        if kernel_type == 'rbf':
+            self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel())
+        elif kernel_type == 'matern':
+            self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel())
+        elif kernel_type == 'linear':
+            self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.LinearKernel())
+        else:
+            raise ValueError(f"Unsupported kernel type: {kernel_type}")
 
     def forward(self, x: torch.Tensor) -> gpytorch.distributions.MultivariateNormal:
         mean_x = self.mean_module(x)
@@ -28,7 +37,7 @@ class GPSurrogate(BaseSurrogate):
     This class implements a Gaussian Process surrogate model using GPyTorch.
     It provides methods for fitting the model to data and making predictions.
     """
-    def __init__(self, config: OptimizationConfig):
+    def __init__(self, config: SurrogateConfig):
         super().__init__(config)
         self.model = None
         self.likelihood = None
@@ -46,7 +55,7 @@ class GPSurrogate(BaseSurrogate):
         y_train = torch.FloatTensor(y).to(self.device)
 
         self.likelihood = gpytorch.likelihoods.GaussianLikelihood().to(self.device)
-        self.model = CustomGPModel(X_train, y_train, self.likelihood).to(self.device)
+        self.model = CustomGPModel(X_train, y_train, self.likelihood, self.config.kernel_type).to(self.device)
         self.model.train()
         self.likelihood.train()
 

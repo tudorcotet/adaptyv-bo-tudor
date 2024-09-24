@@ -1,56 +1,106 @@
 from dataclasses import dataclass
 from typing import List, Optional
-from config.mlflow import MLflowConfig
+
+@dataclass
+class SurrogateConfig:
+    """
+    Configuration class for surrogate model parameters.
+
+    Attributes:
+        surrogate_type (str): Type of surrogate model to use. Default is 'gp'.
+        kernel_type (str): Type of kernel to use for the surrogate model (if GPs). Default is 'rbf'.
+        n_training_iter (int): Number of training iterations for the surrogate model. Default is 10.
+    """
+    surrogate_type: str = 'gp'
+    kernel_type: str = 'rbf'
+    n_training_iter: int = 50   
+
+@dataclass
+class EncodingConfig:
+    """
+    Configuration class for encoding parameters.
+    """
+    encoding_type: str = 'onehot'
+    alphabet: str = 'ACDEFGHIKLMNPQRSTVWY'
+    sequence_length: int = 10
+
+@dataclass
+class AcquisitionConfig:
+    """
+    Configuration class for acquisition function parameters.
+    """
+    acquisition_type: str = 'greedy'
+    beta: float = 2.0
+
+@dataclass
+class GeneratorConfig:
+    """
+    Configuration class for generator parameters.
+    """
+    generator_type: str = 'benchmark'
+    indices_to_mutate: Optional[List[int]] = None
+    n_candidates: int = 1000
+    alphabet: str = 'ACDEFGHIKLMNPQRSTVWY'
+    sequence_length: int = 10
+
+@dataclass
+class QueryConfig:
+    """
+    Configuration class for query parameters.
+    """
+    query_method: str = 'identical' 
+
+@dataclass
+class GeneralConfig:
+    """
+    Configuration class for general parameters.
+    """
+    n_initial: int = 10
+    n_iterations: int = 20
+    batch_size: int = 5
+    n_seeds: int = 1
+    use_gpu: bool = False
+
+@dataclass
+class ModalConfig:
+    """
+    Configuration class for modal parameters.
+    """
+    use_modal: bool = False
+    modal_endpoint: str = 'http://localhost:8000'
+
+@dataclass
+class MLflowConfig:
+    tracking_uri: str = "http://localhost:5060"
+    experiment_name: str = "testing"
+    log_params: bool = True
+    log_model_summary: bool = True
+    log_model_graph: bool = True
+    log_model_weights: bool = True
+    log_training_loss: bool = True
+    log_validation_loss: bool = True
+    log_training_metrics: bool = True
+    log_validation_metrics: bool = True 
+    log_figures: bool = True
+    log_dataset: bool = True
+
+    seed: int = 0
+
+@dataclass
+class DataConfig:
+    """
+    Configuration class for benchmark parameters.
+    """
+    benchmark_file: str = '/Users/tudorcotet/Desktop/small_gb1.csv'
+
 
 @dataclass
 class OptimizationConfig:
-    """
-    Configuration class for optimization parameters.
-
-    Attributes:
-        n_iterations (int): Number of optimization iterations. Default is 20.
-        n_candidates (int): Number of candidate solutions to generate. Default is 10.
-        n_initial (int): Number of initial random samples. Default is 10.
-        seq_length (int): Length of the sequence to optimize. Default is 4.
-        beta (float): Exploration-exploitation trade-off parameter for UCB. Default is 2.0.
-        n_training_iter (int): Number of training iterations for the surrogate model. Default is 10.
-        query_method (str): Method for querying the benchmark data. Default is 'identical'.
-        mode (str): Optimization mode. Default is 'benchmark'.
-        n_seeds (int): Number of random seeds for multiple runs. Default is 1.
-        use_gpu (bool): Whether to use GPU for computations. Default is False.
-        use_modal (bool): Whether to use modal computations. Default is False.
-        modal_endpoint (str): Endpoint for modal computations. Default is 'http://localhost:8000'.
-        alphabet (str): String of valid characters for sequences. Default is 'ACDEFGHIKLMNPQRSTVWY'.
-        seed (int): Random seed for reproducibility. Default is 0.
-        surrogate_type (str): Type of surrogate model to use. Default is 'gp'.
-        acquisition_type (str): Type of acquisition function to use. Default is 'ucb'.
-        encoding_type (str): Type of sequence encoding to use. Default is 'one_hot'.
-        benchmark_file (str): Path to the benchmark data file. Default is '/Users/tudorcotet/Desktop/small_gb1.csv'.
-        batch_size (int): Batch size for optimization. Default is 5.
-        generator_type (str): Type of candidate generator to use. Default is 'mutation'.
-        indices_to_mutate (Optional[List[int]]): Specific indices to mutate in the sequence. Default is None.
-        mlflow_log_config (MLflowConfig): Configuration for MLflow logging. Default is MLflowConfig().
-    """
-
-    n_iterations: int = 20
-    n_candidates: int = 1000
-    n_initial: int = 10
-    seq_length: int = 4
-    beta: float = 2.0
-    n_training_iter: int = 50
-    query_method: str = 'identical'
-    mode: str = 'benchmark'
-    n_seeds: int = 1
-    use_gpu: bool = False
-    use_modal: bool = False
-    modal_endpoint: str = 'http://localhost:8000'
-    alphabet: str = 'ACDEFGHIKLMNPQRSTVWY'
-    seed: int = 0
-    surrogate_type: str = 'gp'
-    acquisition_type: str = 'greedy'
-    encoding_type: str = 'one_hot'
-    benchmark_file: str = '/Users/tudorcotet/Desktop/small_gb1.csv'
-    batch_size: int = 5
-    generator_type: str = 'benchmark'
-    indices_to_mutate: Optional[List[int]] = None
-    mlflow_log_config: MLflowConfig = MLflowConfig(seed=seed)
+    surrogate_config: SurrogateConfig = SurrogateConfig()   
+    acquisition_config: AcquisitionConfig = AcquisitionConfig()
+    generator_config: GeneratorConfig = GeneratorConfig()
+    query_config: QueryConfig = QueryConfig()
+    general_config: GeneralConfig = GeneralConfig() 
+    mlflow_config: MLflowConfig = MLflowConfig()    
+    data_config: DataConfig = DataConfig()
+    encoding_config: EncodingConfig = EncodingConfig()

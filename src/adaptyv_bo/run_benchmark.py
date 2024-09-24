@@ -35,8 +35,11 @@ def run_multiple_seeds(config: OptimizationConfig):
     Returns:
         None
     """
+    config = OptimizationConfig()
+
     benchmark_data = load_benchmark_data(config.benchmark_file)
     all_results: List[pd.DataFrame] = []
+    seed = 0
     for seed in range(config.n_seeds):
         config.seed = seed
         np.random.seed(seed)
@@ -66,12 +69,9 @@ def run_multiple_seeds(config: OptimizationConfig):
         
         # Initialize the Bayesian optimization loop
         loop: BayesianOptimizationLoop = BayesianOptimizationLoop(config, acquisition, query, generator, surrogate, encoding, plotter)
-        
         # Run the optimization loop and get the results
         sequences, fitness_values, rounds = loop.run()
-
-        loop.save_results()
-        loop.plot_results()
+        sequences
         # Save individual seed results
         all_results.append(loop.seed_results_df)
      
@@ -100,4 +100,5 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     config = OptimizationConfig(**{k: v for k, v in vars(args).items() if k in OptimizationConfig.__dataclass_fields__})
+    config = OptimizationConfig()
     run_multiple_seeds(config)

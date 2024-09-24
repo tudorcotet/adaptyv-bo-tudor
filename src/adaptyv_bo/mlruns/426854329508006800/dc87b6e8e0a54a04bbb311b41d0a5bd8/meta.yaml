@@ -1,0 +1,16 @@
+artifact_uri: mlflow-artifacts:/426854329508006800/dc87b6e8e0a54a04bbb311b41d0a5bd8/artifacts
+deleted_time: 1727173428739
+end_time: null
+entry_point_name: ''
+experiment_id: '426854329508006800'
+lifecycle_stage: deleted
+run_id: dc87b6e8e0a54a04bbb311b41d0a5bd8
+run_name: time_1727173379.7933109_surrogate_gp_acquisition_ucb_encoding_one_hot_generator_benchmark_seed_0
+run_uuid: dc87b6e8e0a54a04bbb311b41d0a5bd8
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1727173379871
+status: 1
+tags: []
+user_id: tudorcotet

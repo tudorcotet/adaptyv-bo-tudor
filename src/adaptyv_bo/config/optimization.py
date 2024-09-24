@@ -32,12 +32,12 @@ class OptimizationConfig:
         mlflow_log_config (MLflowConfig): Configuration for MLflow logging. Default is MLflowConfig().
     """
 
-    n_iterations: int = 20
+    n_iterations: int = 10
     n_candidates: int = 10
     n_initial: int = 10
     seq_length: int = 4
     beta: float = 2.0
-    n_training_iter: int = 10
+    n_training_iter: int = 50
     query_method: str = 'identical'
     mode: str = 'benchmark'
     n_seeds: int = 1
@@ -51,6 +51,6 @@ class OptimizationConfig:
     encoding_type: str = 'one_hot'
     benchmark_file: str = '/Users/tudorcotet/Desktop/small_gb1.csv'
     batch_size: int = 5
-    generator_type: str = 'mutation'
+    generator_type: str = 'benchmark'
     indices_to_mutate: Optional[List[int]] = None
-    mlflow_log_config: MLflowConfig = MLflowConfig()
+    mlflow_log_config: MLflowConfig = MLflowConfig(seed=seed)

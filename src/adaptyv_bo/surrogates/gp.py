@@ -61,6 +61,8 @@ class GPSurrogate(BaseSurrogate):
                 loss.backward()
                 optimizer.step()
 
+        return loss.item(), loss.item()
+
     def predict(self, X: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         Make predictions using the fitted Gaussian Process model.

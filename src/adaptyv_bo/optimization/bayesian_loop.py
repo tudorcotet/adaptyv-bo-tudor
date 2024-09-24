@@ -11,7 +11,8 @@ from surrogates.base import BaseSurrogate
 from encoding.base import BaseEncoding
 from utils.plotter import SimplePlotter
 from utils.trackers.mlflow import MLflowTracker
-from config.mlflow import MLflowConfig
+import time
+import torch
 
 class BayesianOptimizationLoop:
     """
@@ -48,7 +49,7 @@ class BayesianOptimizationLoop:
         self.encoding = encoding
         self.plotter = plotter
         self.mlflow_config = config.mlflow_log_config
-        self.tracker = MLflowTracker(self, surrogate, mlflow_config)
+        self.tracker = MLflowTracker(self.mlflow_config)
         self.sequences: List[str] = []
         self.encoded_sequences: List[np.ndarray] = []
         self.fitness_values: List[float] = []
@@ -57,6 +58,8 @@ class BayesianOptimizationLoop:
         self.logger = self._setup_logger()
         self.max_fitness = float('-inf')
         self.seed_results_df: pd.DataFrame = pd.DataFrame()
+        self.train_losses: List[float] = []
+        self.val_losses: List[float] = []
 
     def _setup_logger(self) -> logging.Logger:
         """Set up and return a logger for the optimization process."""
@@ -78,6 +81,10 @@ class BayesianOptimizationLoop:
         self.rounds.extend([0] * len(initial_sequences))
         self.acquired_sequences.update(initial_sequences)
         self.max_fitness = max(initial_fitness)
+
+        self.tracker.__exit__(None, None, None)
+        self.tracker.start_run(f"time_{time.time()}_surrogate_{self.config.surrogate_type}_acquisition_{self.config.acquisition_type}_encoding_{self.config.encoding_type}_generator_{self.config.generator_type}_seed_{self.config.seed}")
+
         self.logger.info(f"Initialization complete. Max fitness: {self.max_fitness}")
         self.logger.info(f"Initial sequences: {initial_sequences}")
         self.logger.info(f"Initial fitness values: {initial_fitness}")
@@ -92,42 +99,44 @@ class BayesianOptimizationLoop:
         self.logger.info("Starting Bayesian Optimization Loop")
         self.initialize()
 
-        with self.tracker:
-            self.tracker.log_params({
-                "acquisition_function": self.acquisition.__class__.__name__,
-                "surrogate_model": self.surrogate.__class__.__name__,
+        self.tracker.log_params({
+            "acquisition_function": self.acquisition.__class__.__name__,
+            "surrogate_model": self.surrogate.__class__.__name__,
                 "encoding_method": self.encoding.__class__.__name__,
                 "generator_type": self.generator.__class__.__name__
             })
 
-            # Log initial metrics
-            initial_fitness_values = self.fitness_values[:self.config.n_initial]
-            self._log_metrics(0, initial_fitness_values, self.sequences[:self.config.n_initial], 
+        # Log initial metrics
+        initial_fitness_values = self.fitness_values[:self.config.n_initial]
+        self._log_metrics(0, initial_fitness_values, self.sequences[:self.config.n_initial], 
                               np.zeros(self.config.n_initial), 0.0, 0.0)
 
-            for iteration in range(self.config.n_iterations):
-                start_time = time.time()
-                
-                # Fit surrogate model
-                train_loss, val_loss = self.fit_surrogate()
-                
-                # Generate and evaluate candidates
-                candidates, new_fitness_values, acquisition_values = self.generate_and_evaluate_candidates()
+        for iteration in range(self.config.n_iterations):
+            start_time = time.time()
+            
+            # Fit surrogate model
+            train_loss, val_loss = self.fit_surrogate()
+            self.train_losses.append(train_loss)
+            self.val_losses.append(val_loss)
+            
+            # Generate and evaluate candidates
+            candidates, new_fitness_values, acquisition_values = self.generate_and_evaluate_candidates()
 
-                # Update sequences and metrics
-                self.update_sequences_and_metrics(iteration, candidates, new_fitness_values, acquisition_values, train_loss, val_loss, start_time)
+            # Update sequences and metrics
+            self.update_sequences_and_metrics(iteration, candidates, new_fitness_values, acquisition_values, train_loss, val_loss, start_time)
 
-                self.logger.info(f"Iteration {iteration + 1} completed. Current max fitness: {self.max_fitness}")
+            self.logger.info(f"Iteration {iteration + 1} completed. Current max fitness: {self.max_fitness}")
 
             # Log final results and artifacts
             self.log_final_results()
 
         self.logger.info("Bayesian Optimization Loop completed")
+        self.tracker.end_run()
         return self.sequences, self.fitness_values, self.rounds
 
     def fit_surrogate(self):
-        X = torch.tensor(self.encoded_sequences, dtype=torch.float32)
-        y = torch.tensor(self.fitness_values, dtype=torch.float32)
+        X = np.array(self.encoded_sequences)
+        y = np.array(self.fitness_values)
         train_loss, val_loss = self.surrogate.fit(X, y)
         return train_loss, val_loss
 
@@ -154,21 +163,29 @@ class BayesianOptimizationLoop:
         self.rounds.extend([iteration + 1] * len(candidates))
 
         iteration_time = time.time() - start_time
+
+        self.max_fitness = max(self.max_fitness, max(new_fitness_values))
         self._log_metrics(iteration + 1, new_fitness_values, candidates, 
                           acquisition_values, train_loss, iteration_time)
 
         # Update max fitness and generator
-        self.max_fitness = max(self.max_fitness, max(new_fitness_values))
         self.generator.update_sequences(candidates)
 
     def _log_metrics(self, iteration: int, fitness_values: List[float], sequences: List[str], 
                      acquisition_values: List[float], train_loss: float, iteration_time: float):
         metrics = {
-            "max_fitness": max(fitness_values),
-            "mean_fitness": np.mean(fitness_values),
-            "std_fitness": np.std(fitness_values),
+            "max_fitness_current": max(fitness_values),
+            "mean_fitness_current": np.mean(fitness_values),
+            "std_fitness_current": np.std(fitness_values),
+            "max_fitness": self.max_fitness,
+            "mean_fitness": np.mean(self.fitness_values),
+            "std_fitness": np.std(self.fitness_values),
             "train_loss": train_loss,
-            "iteration_time": iteration_time
+            "iteration_time": iteration_time,
+            "iteration": iteration,
+            "acquired_sequences": len(self.acquired_sequences),
+            "total_validated_sequences": len(self.sequences),
+            "total_evaluated_sequences": len(self.fitness_values)
         }
         for key, value in metrics.items():
             self.tracker.log_metric(key, value, step=iteration)
@@ -187,6 +204,8 @@ class BayesianOptimizationLoop:
         """Generate plots of the optimization results."""
         self.plotter.plot_embeddings(self.sequences, self.fitness_values, self.rounds)
         self.plotter.plot_max_fitness(self.fitness_values)
+        self.plotter.plot_training_loss(self.train_losses, self.val_losses)
+        self.plotter.plot_validation_loss(self.val_losses)
 
     def get_seed_results(self):
         """
@@ -204,7 +223,7 @@ class BayesianOptimizationLoop:
                 'Generator': self.config.generator_type
             })
 
-    def save_results(self):
+    def save_results_to_csv(self):
         """
         Save the optimization results to a CSV file.
         """
@@ -218,17 +237,34 @@ class BayesianOptimizationLoop:
     
     def log_final_results(self):
         best_sequence, best_fitness = self.get_best_sequence()
-        self.tracker.log_metric("final_max_fitness", best_fitness)
-        self.tracker.log_params({"best_sequence": best_sequence})
+        try:
+            self.tracker.log_metric("final_max_fitness", best_fitness)
+            self.tracker.log_params({"best_sequence": best_sequence})
+        except Exception as e:
+            self.logger.error(f"Failed to log final results to MLflow: {e}")
 
-        self.save_results_to_csv(os.path.join(self.plotter.output_dir, "csv", f"seed_{self.config.seed}_results.csv"))
-        self.tracker.log_artifact(os.path.join(self.plotter.output_dir, f"log_seed_{self.config.seed}.txt"))
-        self.tracker.log_artifact(os.path.join(self.plotter.output_dir, "csv", f"seed_{self.config.seed}_results.csv"))
-
+        #self.tracker.log_artifact(os.path.join(self.plotter.output_dir, f"log_seed_{self.config.seed}.txt"))
+        #seed_csv_path = os.path.join(self.plotter.output_dir, "csv", f"seed_{self.config.seed}_results.csv")
+        #if os.path.exists(seed_csv_path):
+        #    self.tracker.log_artifact(seed_csv_path)
+        #else:
+        #    self.logger.error(f"File not found: {seed_csv_path}")
+        
         # Log figures
-        self.tracker.log_figure(self.plotter.plot_embeddings(), "embeddings.png")
-        self.tracker.log_figure(self.plotter.plot_max_fitness(), "max_fitness.png")
-        self.tracker.log_figure(self.plotter.plot_training_loss(), "training_loss.png")
-        self.tracker.log_figure(self.plotter.plot_validation_loss(), "validation_loss.png")
-        self.tracker.log_figure(self.plotter.plot_training_metrics(), "training_metrics.png")
-        self.tracker.log_figure(self.plotter.plot_validation_metrics(), "validation_metrics.png")
+        #embeddings_figure = self.plotter.plot_embeddings(self.sequences, self.fitness_values, self.rounds)
+        #if embeddings_figure:
+        #    self.tracker.log_figure(embeddings_figure, "embeddings.png")
+        
+        #max_fitness_figure = self.plotter.plot_max_fitness(self.fitness_values)
+        #if max_fitness_figure:
+        #    self.tracker.log_figure(max_fitness_figure, "max_fitness.png")
+        
+        #training_loss_figure = self.plotter.plot_training_loss(self.train_losses, self.val_losses)
+        #if training_loss_figure:
+        #    self.tracker.log_figure(training_loss_figure, "training_loss.png")
+        
+        #validation_loss_figure = self.plotter.plot_validation_loss(self.val_losses)
+        #if validation_loss_figure:
+        #    self.tracker.log_figure(validation_loss_figure, "validation_loss.png")
+        
+        self.save_results_to_csv()

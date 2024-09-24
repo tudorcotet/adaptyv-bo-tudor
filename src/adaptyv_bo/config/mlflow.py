@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 @dataclass
 class MLflowConfig:
-    tracking_uri: str = "http://localhost:5000"
+    tracking_uri: str = "http://localhost:5050"
     experiment_name: str = "testing"
     log_params: bool = True
     log_model_summary: bool = True
@@ -14,3 +14,5 @@ class MLflowConfig:
     log_validation_metrics: bool = True 
     log_figures: bool = True
     log_dataset: bool = True
+
+    seed: int = 0

@@ -40,7 +40,7 @@ class BayesianOptimizationLoop:
 
     def __init__(self, config: OptimizationConfig, acquisition: BaseAcquisition, query: BenchmarkQuery,
                  generator: BaseGenerator, surrogate: BaseSurrogate, encoding: BaseEncoding,
-                 plotter: SimplePlotter):
+                 plotter: SimplePlotter, output_dir: str):
         self.config = config
         self.acquisition = acquisition
         self.query = query
@@ -55,17 +55,22 @@ class BayesianOptimizationLoop:
         self.fitness_values: List[float] = []
         self.rounds: List[int] = []
         self.acquired_sequences: set = set()
-        self.logger = self._setup_logger()
         self.max_fitness = float('-inf')
         self.seed_results_df: pd.DataFrame = pd.DataFrame()
         self.train_losses: List[float] = []
         self.val_losses: List[float] = []
+        self.seed_output_dir = os.path.join(output_dir, f"seed_{self.config.seed}")
+        print(f"Seed output directory: {self.seed_output_dir}")
+        os.makedirs(self.seed_output_dir, exist_ok=True)
+        os.makedirs(os.path.join(self.seed_output_dir, "plots"), exist_ok=True)
+        os.makedirs(os.path.join(self.seed_output_dir, "csv"), exist_ok=True) 
+        self.logger = self._setup_logger()
 
     def _setup_logger(self) -> logging.Logger:
         """Set up and return a logger for the optimization process."""
         logger = logging.getLogger(f"BayesianOpt_Seed_{self.config.seed}")
         logger.setLevel(logging.INFO)
-        file_handler = logging.FileHandler(os.path.join(self.plotter.output_dir, f"log_seed_{self.config.seed}.txt"))
+        file_handler = logging.FileHandler(os.path.join(self.seed_output_dir, f"log_seed_{self.config.seed}.txt"))
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
@@ -73,6 +78,8 @@ class BayesianOptimizationLoop:
 
     def initialize(self):
         """Initialize the optimization process with a set of initial sequences."""
+
+        # Generate initial sequences
         initial_sequences = self.generator.generate(self.config.n_initial)
         initial_fitness = self.query.query(initial_sequences)
         self.sequences.extend(initial_sequences)
@@ -82,9 +89,9 @@ class BayesianOptimizationLoop:
         self.acquired_sequences.update(initial_sequences)
         self.max_fitness = max(initial_fitness)
 
-        self.tracker.__exit__(None, None, None)
-        self.tracker.start_run(f"time_{time.time()}_surrogate_{self.config.surrogate_type}_acquisition_{self.config.acquisition_type}_encoding_{self.config.encoding_type}_generator_{self.config.generator_type}_seed_{self.config.seed}")
-
+        # Start the MLflow run
+        self.tracker.start_run(f"time@{int(time.time())}_surrogate@{self.config.surrogate_type}_acquisition@{self.config.acquisition_type}_encoding@{self.config.encoding_type.replace('_','')}_generator@{self.config.generator_type}_seed@{self.config.seed}")
+        
         self.logger.info(f"Initialization complete. Max fitness: {self.max_fitness}")
         self.logger.info(f"Initial sequences: {initial_sequences}")
         self.logger.info(f"Initial fitness values: {initial_fitness}")
@@ -127,9 +134,8 @@ class BayesianOptimizationLoop:
 
             self.logger.info(f"Iteration {iteration + 1} completed. Current max fitness: {self.max_fitness}")
 
-            # Log final results and artifacts
-            self.log_final_results()
-
+        # Log final results and artifacts
+        self.log_final_results()
         self.logger.info("Bayesian Optimization Loop completed")
         self.tracker.end_run()
         return self.sequences, self.fitness_values, self.rounds
@@ -183,12 +189,15 @@ class BayesianOptimizationLoop:
             "train_loss": train_loss,
             "iteration_time": iteration_time,
             "iteration": iteration,
-            "acquired_sequences": len(self.acquired_sequences),
-            "total_validated_sequences": len(self.sequences),
-            "total_evaluated_sequences": len(self.fitness_values)
+            "total_evaluated_sequences": len(self.sequences)
         }
-        for key, value in metrics.items():
-            self.tracker.log_metric(key, value, step=iteration)
+
+        try:
+            for key, value in metrics.items():
+                self.tracker.log_metric(key, value, step=iteration)
+        except Exception as e:
+            self.logger.error(f"Failed to log metrics to MLflow: {e}")
+            self.logger.error(f"Metrics: {metrics}")
 
     def get_best_sequence(self) -> Tuple[str, float]:
         """
@@ -202,12 +211,13 @@ class BayesianOptimizationLoop:
 
     def plot_results(self):
         """Generate plots of the optimization results."""
-        self.plotter.plot_embeddings(self.sequences, self.fitness_values, self.rounds)
-        self.plotter.plot_max_fitness(self.fitness_values)
-        self.plotter.plot_training_loss(self.train_losses, self.val_losses)
-        self.plotter.plot_validation_loss(self.val_losses)
 
-    def get_seed_results(self):
+        self.plotter.plot_embeddings(self.sequences, self.fitness_values, self.rounds, self.seed_output_dir)
+        self.plotter.plot_max_fitness(self.fitness_values, self.seed_output_dir)
+        self.plotter.plot_training_loss(self.train_losses, self.val_losses, self.seed_output_dir)
+        self.plotter.plot_validation_loss(self.val_losses, self.seed_output_dir)    
+
+    def get_results(self):
         """
         Get the results for the current seed.
         """
@@ -228,10 +238,9 @@ class BayesianOptimizationLoop:
         Save the optimization results to a CSV file.
         """
         # Create the csv directory if it doesn't exist
-        self.get_seed_results()
+        self.get_results()
         if not self.seed_results_df.empty:
-            os.makedirs(os.path.join(self.plotter.output_dir, "csv"), exist_ok=True)
-            seed_csv_path = os.path.join(self.plotter.output_dir, "csv", f"seed_{self.config.seed}_results.csv")
+            seed_csv_path = os.path.join(self.seed_output_dir, "csv", f"seed_{self.config.seed}_results.csv")
             self.seed_results_df.to_csv(seed_csv_path, index=False)
             self.logger.info(f"Seed {self.config.seed} results saved to {seed_csv_path}")
     
@@ -243,28 +252,26 @@ class BayesianOptimizationLoop:
         except Exception as e:
             self.logger.error(f"Failed to log final results to MLflow: {e}")
 
-        #self.tracker.log_artifact(os.path.join(self.plotter.output_dir, f"log_seed_{self.config.seed}.txt"))
-        #seed_csv_path = os.path.join(self.plotter.output_dir, "csv", f"seed_{self.config.seed}_results.csv")
-        #if os.path.exists(seed_csv_path):
-        #    self.tracker.log_artifact(seed_csv_path)
-        #else:
-        #    self.logger.error(f"File not found: {seed_csv_path}")
-        
-        # Log figures
-        #embeddings_figure = self.plotter.plot_embeddings(self.sequences, self.fitness_values, self.rounds)
-        #if embeddings_figure:
-        #    self.tracker.log_figure(embeddings_figure, "embeddings.png")
-        
-        #max_fitness_figure = self.plotter.plot_max_fitness(self.fitness_values)
-        #if max_fitness_figure:
-        #    self.tracker.log_figure(max_fitness_figure, "max_fitness.png")
-        
-        #training_loss_figure = self.plotter.plot_training_loss(self.train_losses, self.val_losses)
-        #if training_loss_figure:
-        #    self.tracker.log_figure(training_loss_figure, "training_loss.png")
-        
-        #validation_loss_figure = self.plotter.plot_validation_loss(self.val_losses)
-        #if validation_loss_figure:
-        #    self.tracker.log_figure(validation_loss_figure, "validation_loss.png")
-        
+        # Save and log the CSV with all metrics and sequences
         self.save_results_to_csv()
+        seed_csv_path = os.path.join(self.seed_output_dir, "csv", f"seed_{self.config.seed}_results.csv")
+
+        if os.path.exists(seed_csv_path):
+            self.tracker.log_artifact(seed_csv_path)
+        else:
+            self.logger.error(f"File not found: {seed_csv_path}")
+
+        # Save and log all plots
+        self.plot_results()
+        plot_dir = os.path.join(self.seed_output_dir, "plots")
+        for root, _, files in os.walk(plot_dir):
+            for file in files:
+                if file.endswith(".png"):
+                    self.tracker.log_artifact(os.path.join(root, file))
+
+        # Save and log the log file
+        log_file_path = os.path.join(self.seed_output_dir, f"log_seed_{self.config.seed}.txt")
+        if os.path.exists(log_file_path):
+            self.tracker.log_artifact(log_file_path)
+        else:
+            self.logger.error(f"File not found: {log_file_path}")

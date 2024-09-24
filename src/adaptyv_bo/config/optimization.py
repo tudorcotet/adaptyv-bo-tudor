@@ -32,8 +32,8 @@ class OptimizationConfig:
         mlflow_log_config (MLflowConfig): Configuration for MLflow logging. Default is MLflowConfig().
     """
 
-    n_iterations: int = 10
-    n_candidates: int = 10
+    n_iterations: int = 20
+    n_candidates: int = 1000
     n_initial: int = 10
     seq_length: int = 4
     beta: float = 2.0
@@ -47,7 +47,7 @@ class OptimizationConfig:
     alphabet: str = 'ACDEFGHIKLMNPQRSTVWY'
     seed: int = 0
     surrogate_type: str = 'gp'
-    acquisition_type: str = 'ucb'
+    acquisition_type: str = 'greedy'
     encoding_type: str = 'one_hot'
     benchmark_file: str = '/Users/tudorcotet/Desktop/small_gb1.csv'
     batch_size: int = 5

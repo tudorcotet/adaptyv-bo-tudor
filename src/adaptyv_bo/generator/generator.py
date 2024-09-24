@@ -116,7 +116,6 @@ class BenchmarkGenerator(BaseGenerator):
         """
         available_candidates = [c for c in self.all_candidates if c not in self.acquired_sequences]
         selected = random.sample(available_candidates, min(n_candidates, len(available_candidates)))
-        self.acquired_sequences.update(selected)
         return selected
 
     def generate_all(self) -> List[str]:

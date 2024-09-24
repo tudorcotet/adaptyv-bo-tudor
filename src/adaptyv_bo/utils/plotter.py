@@ -126,25 +126,8 @@ class SimplePlotter(BasePlotter):
         """
         super().__init__(config)
         self.encoding = encoding
-        self.output_dir = self._create_output_directory()
-
-    def _create_output_directory(self) -> str:
-        """
-        Create the output directory structure for saving plots and data.
-
-        Returns:
-            str: Path to the created output directory.
-        """
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_dir = f"output_{timestamp}"
-        os.makedirs(output_dir, exist_ok=True)
-        os.makedirs(os.path.join(output_dir, "plots"), exist_ok=True)
-        os.makedirs(os.path.join(output_dir, "plots", "embeddings"), exist_ok=True)
-        os.makedirs(os.path.join(output_dir, "plots", "max_fitness"), exist_ok=True)
-        os.makedirs(os.path.join(output_dir, "csv"), exist_ok=True)
-        return output_dir
-
-    def plot_embeddings(self, sequences: List[str], fitness_values: List[float], rounds: List[int]):
+    
+    def plot_embeddings(self, sequences: List[str], fitness_values: List[float], rounds: List[int], output_dir: str):
         """
         Plot the embeddings of sequences along with their fitness values.
 
@@ -152,6 +135,7 @@ class SimplePlotter(BasePlotter):
             sequences (List[str]): List of sequences to plot.
             fitness_values (List[float]): Corresponding fitness values for each sequence.
             rounds (List[int]): The optimization round for each sequence.
+            output_dir (str): Directory path for saving output files.
         """
         encoded = self.encoding.encode(sequences)
         pca = PCA(n_components=2)
@@ -165,33 +149,36 @@ class SimplePlotter(BasePlotter):
         ax.set_zlabel('Fitness')
         ax.set_title('Protein Embeddings')
         plt.colorbar(scatter, label='Round')
-        plt.savefig(os.path.join(self.output_dir, "plots", "embeddings", f'embeddings_seed_{self.config.seed}.png'))
+        plt.savefig(os.path.join(output_dir, "plots", 'embeddings.png'))
         plt.close()
 
-    def plot_max_fitness(self, fitness_values: List[float]):
+    def plot_max_fitness(self, fitness_values: List[float], output_dir: str):
         """
         Plot the progression of maximum fitness values over optimization rounds.
 
         Args:
             fitness_values (List[float]): List of maximum fitness values for each round.
         """
+        max_fitness_acquired = [max(fitness_values[:i+1]) for i in range(len(fitness_values))]
+        
         plt.figure(figsize=(10, 6))
-        plt.plot(range(len(fitness_values)), fitness_values)
+        plt.plot(range(len(max_fitness_acquired)), max_fitness_acquired)
         plt.xlabel('Round')
         plt.ylabel('Max Fitness')
-        plt.title('Max Fitness per Round')
-        plt.savefig(os.path.join(self.output_dir, "plots", "max_fitness", f'max_fitness_seed_{self.config.seed}.png'))
+        plt.title('Max Fitness of All Acquired Sequences Until and Including the Round')
+        plt.savefig(os.path.join(output_dir, "plots", 'max_fitness.png'))
         plt.close()
 
-    def plot_average_results(self, all_max_fitness: List[List[float]]):
+    def plot_average_results(self, all_max_fitness: List[List[float]], output_dir: str):
         """
-        Plot the average results across multiple optimization runs.
+        Plot the average max fitness of all acquired sequences until and including the round, averaged across seeds with standard deviation.
 
         Args:
             all_max_fitness (List[List[float]]): List of maximum fitness progressions for each run.
         """
-        avg_max_fitness = np.mean(all_max_fitness, axis=0)
-        std_max_fitness = np.std(all_max_fitness, axis=0)
+        max_fitness_acquired = [np.maximum.accumulate(fitness) for fitness in all_max_fitness]
+        avg_max_fitness = np.mean(max_fitness_acquired, axis=0)
+        std_max_fitness = np.std(max_fitness_acquired, axis=0)
 
         plt.figure(figsize=(10, 6))
         plt.plot(range(len(avg_max_fitness)), avg_max_fitness, label='Average')
@@ -201,12 +188,12 @@ class SimplePlotter(BasePlotter):
                          alpha=0.2)
         plt.xlabel('Round')
         plt.ylabel('Max Fitness')
-        plt.title('Average Max Fitness per Round (with std dev)')
+        plt.title('Average Max Fitness of All Acquired Sequences Until and Including the Round (with std dev)')
         plt.legend()
-        plt.savefig(os.path.join(self.output_dir, "plots", 'average_max_fitness.png'))
+        plt.savefig(os.path.join(output_dir, 'average_max_fitness.png'))
         plt.close()
 
-    def plot_training_loss(self, training_loss: List[float], validation_loss: List[float]):
+    def plot_training_loss(self, training_loss: List[float], validation_loss: List[float], output_dir: str):
         """
         Plot the training and validation loss over epochs.
 
@@ -221,10 +208,10 @@ class SimplePlotter(BasePlotter):
         plt.ylabel('Loss')
         plt.title('Training and Validation Loss')
         plt.legend()
-        plt.savefig(os.path.join(self.output_dir, "plots", 'training_loss.png'))
+        plt.savefig(os.path.join(output_dir, "plots", 'training_loss.png'))
         plt.close()
 
-    def plot_validation_loss(self, validation_loss: List[float]):
+    def plot_validation_loss(self, validation_loss: List[float], output_dir: str):
         """
         Plot the validation loss over epochs.
 
@@ -237,10 +224,10 @@ class SimplePlotter(BasePlotter):
         plt.ylabel('Loss')
         plt.title('Validation Loss')
         plt.legend()
-        plt.savefig(os.path.join(self.output_dir, "plots", 'validation_loss.png'))
+        plt.savefig(os.path.join(output_dir, "plots", 'validation_loss.png'))
         plt.close()
 
-    def plot_training_metrics(self, training_metrics: List[float], validation_metrics: List[float]):
+    def plot_training_metrics(self, training_metrics: List[float], validation_metrics: List[float], output_dir: str):
         """
         Plot the training and validation metrics over epochs.
 
@@ -255,10 +242,10 @@ class SimplePlotter(BasePlotter):
         plt.ylabel('Metrics')
         plt.title('Training and Validation Metrics')
         plt.legend()
-        plt.savefig(os.path.join(self.output_dir, "plots", 'training_metrics.png'))
+        plt.savefig(os.path.join(output_dir, "plots", 'training_metrics.png'))
         plt.close()
 
-    def plot_validation_metrics(self, validation_metrics: List[float]):
+    def plot_validation_metrics(self, validation_metrics: List[float], output_dir: str):
         """
         Plot the validation metrics over epochs.
 
@@ -271,7 +258,7 @@ class SimplePlotter(BasePlotter):
         plt.ylabel('Metrics')
         plt.title('Validation Metrics')
         plt.legend()
-        plt.savefig(os.path.join(self.output_dir, "plots", 'validation_metrics.png'))
+        plt.savefig(os.path.join(output_dir, "plots", 'validation_metrics.png'))
         plt.close()
 
 

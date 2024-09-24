@@ -58,7 +58,7 @@ class GeneralConfig:
     n_initial: int = 10
     n_iterations: int = 20
     batch_size: int = 5
-    n_seeds: int = 1
+    n_seeds: int = 5
     use_gpu: bool = False
 
 @dataclass

@@ -40,7 +40,7 @@ class BayesianOptimizationLoop:
 
     def __init__(self, config: OptimizationConfig, acquisition: BaseAcquisition, query: BenchmarkQuery,
                  generator: BaseGenerator, surrogate: BaseSurrogate, encoding: BaseEncoding,
-                 plotter: SimplePlotter, output_dir: str):
+                 plotter: SimplePlotter, output_dir: str, seed: int):
         self.config = config
         self.acquisition = acquisition
         self.query = query
@@ -57,20 +57,21 @@ class BayesianOptimizationLoop:
         self.acquired_sequences: set = set()
         self.max_fitness = float('-inf')
         self.seed_results_df: pd.DataFrame = pd.DataFrame()
+        self.seed = seed
         self.train_losses: List[float] = []
         self.val_losses: List[float] = []
-        self.seed_output_dir = os.path.join(output_dir, f"seed_{self.config.mlflow_config.seed}")
-        print(f"Seed output directory: {self.seed_output_dir}")
+        self.seed_output_dir = os.path.join(output_dir, f"seed_{self.seed}")
         os.makedirs(self.seed_output_dir, exist_ok=True)
         os.makedirs(os.path.join(self.seed_output_dir, "plots"), exist_ok=True)
         os.makedirs(os.path.join(self.seed_output_dir, "csv"), exist_ok=True) 
         self.logger = self._setup_logger()
 
+
     def _setup_logger(self) -> logging.Logger:
         """Set up and return a logger for the optimization process."""
-        logger = logging.getLogger(f"BayesianOpt_Seed_{self.config.mlflow_config.seed}")
+        logger = logging.getLogger(f"BayesianOpt_Seed_{self.seed}")
         logger.setLevel(logging.INFO)
-        file_handler = logging.FileHandler(os.path.join(self.seed_output_dir, f"log_seed_{self.config.mlflow_config.seed}.txt"))
+        file_handler = logging.FileHandler(os.path.join(self.seed_output_dir, f"log_seed_{self.seed}.txt"))
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
@@ -90,7 +91,7 @@ class BayesianOptimizationLoop:
         self.max_fitness = max(initial_fitness)
 
         # Start the MLflow run
-        self.tracker.start_run(f"time@{int(time.time())}_surrogate@{self.config.surrogate_config.surrogate_type}_acquisition@{self.config.acquisition_config.acquisition_type}_encoding@{self.config.encoding_config.encoding_type.replace('_','')}_generator@{self.config.generator_config.generator_type}_seed@{self.config.mlflow_config.seed}")
+        self.tracker.start_run(f"time@{int(time.time())}_surrogate@{self.config.surrogate_config.surrogate_type}_acquisition@{self.config.acquisition_config.acquisition_type}_encoding@{self.config.encoding_config.encoding_type.replace('_','')}_generator@{self.config.generator_config.generator_type}_seed@{self.seed}")
         
         self.logger.info(f"Initialization complete. Max fitness: {self.max_fitness}")
         self.logger.info(f"Initial sequences: {initial_sequences}")
@@ -223,7 +224,7 @@ class BayesianOptimizationLoop:
         """
         if self.seed_results_df.empty:
             self.seed_results_df = pd.DataFrame({
-                'Seed': self.config.mlflow_config.seed,
+                'Seed': self.seed,
                 'Round': self.rounds,
                 'Sequence': self.sequences,
                 'Fitness': self.fitness_values,
@@ -240,9 +241,9 @@ class BayesianOptimizationLoop:
         # Create the csv directory if it doesn't exist
         self.get_results()
         if not self.seed_results_df.empty:
-            seed_csv_path = os.path.join(self.seed_output_dir, "csv", f"seed_{self.config.mlflow_config.seed}_results.csv")
+            seed_csv_path = os.path.join(self.seed_output_dir, "csv", f"seed_{self.seed}_results.csv")
             self.seed_results_df.to_csv(seed_csv_path, index=False)
-            self.logger.info(f"Seed {self.config.mlflow_config.seed} results saved to {seed_csv_path}")
+            self.logger.info(f"Seed {self.seed} results saved to {seed_csv_path}")
     
     def log_final_results(self):
         best_sequence, best_fitness = self.get_best_sequence()
@@ -254,7 +255,7 @@ class BayesianOptimizationLoop:
 
         # Save and log the CSV with all metrics and sequences
         self.save_results_to_csv()
-        seed_csv_path = os.path.join(self.seed_output_dir, "csv", f"seed_{self.config.mlflow_config.seed}_results.csv")
+        seed_csv_path = os.path.join(self.seed_output_dir, "csv", f"seed_{self.seed}_results.csv")
 
         if os.path.exists(seed_csv_path):
             self.tracker.log_artifact(seed_csv_path)
@@ -270,7 +271,7 @@ class BayesianOptimizationLoop:
                     self.tracker.log_artifact(os.path.join(root, file))
 
         # Save and log the log file
-        log_file_path = os.path.join(self.seed_output_dir, f"log_seed_{self.config.mlflow_config.seed}.txt")
+        log_file_path = os.path.join(self.seed_output_dir, f"log_seed_{self.seed}.txt")
         if os.path.exists(log_file_path):
             self.tracker.log_artifact(log_file_path)
         else:

@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import pandas as pd
 from typing import List
-from config.optimization import OptimizationConfig
+from config.optimization import *
 from utils.load import load_benchmark_data, get_acquisition, get_generator, get_surrogate, get_encoding
 from utils.query import BenchmarkQuery
 from acquisitions.base import BaseAcquisition
@@ -45,7 +45,7 @@ def run_single_seed(output_dir: str, seed: int, config: OptimizationConfig, benc
     plotter: SimplePlotter = SimplePlotter(encoding)
 
     # Initialize the Bayesian optimization loop
-    loop: BayesianOptimizationLoop = BayesianOptimizationLoop(config, acquisition, query, generator, surrogate, encoding, plotter, output_dir)
+    loop: BayesianOptimizationLoop = BayesianOptimizationLoop(config, acquisition, query, generator, surrogate, encoding, plotter, output_dir, seed)
     
     # Run the optimization loop and get the results
     sequences, fitness_values, rounds = loop.run()
@@ -76,7 +76,7 @@ def run_multiple_seeds(config: OptimizationConfig):
     output_dir = f"output_benchmark_{int(time.time())}"
     os.makedirs(output_dir, exist_ok=True)
 
-    with mp.Pool(processes=mp.cpu_count()) as pool:
+    with mp.Pool(processes=config.general_config.n_seeds) as pool:
         results = [pool.apply_async(run_single_seed, args=(output_dir, seed, config, benchmark_data)) for seed in range(config.general_config.n_seeds)]
         for result in results:
             try:
@@ -121,5 +121,34 @@ if __name__ == "__main__":
         parser.add_argument(f'--{field.name}', type=field.type, default=field.default)
 
     args = parser.parse_args()
-    config = OptimizationConfig(**{k: v for k, v in vars(args).items() if k in OptimizationConfig.__dataclass_fields__})
-    run_multiple_seeds(config)
+    #config = OptimizationConfig(**{k: v for k, v in vars(args).items() if k in OptimizationConfig.__dataclass_fields__})
+    #run_multiple_seeds(config)
+
+    # Define different configurations
+    acquisition_types = ['ucb', 'ei', 'ts', 'greedy', 'random']
+    surrogate_types = ['gp']
+    kernel_types = ['rbf', 'matern', 'rational_quadratic']
+
+    configs = []
+    for acquisition_type in acquisition_types:
+        for surrogate_type in surrogate_types:
+            for kernel_type in kernel_types:
+                configs.append(
+                    OptimizationConfig(
+                        acquisition_config=AcquisitionConfig(acquisition_type=acquisition_type),
+                        surrogate_config=SurrogateConfig(surrogate_type=surrogate_type, kernel_type=kernel_type)
+                    )
+                )
+
+    # Run multiple seeds for each configuration
+    for i, cfg in enumerate(configs):
+        print(f"\nRunning configuration {i+1}/{len(configs)}:")
+        print(f"Acquisition: {cfg.acquisition_config.acquisition_type}")
+        print(f"Surrogate: {cfg.surrogate_config.surrogate_type}")
+        
+        config_output_dir = os.path.join(output_dir, f"config_{i+1}")
+        os.makedirs(config_output_dir, exist_ok=True)
+        
+        run_multiple_seeds(cfg, config_output_dir)
+
+    print("\nAll configurations completed.")

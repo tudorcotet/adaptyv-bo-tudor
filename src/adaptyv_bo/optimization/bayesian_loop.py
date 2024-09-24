@@ -10,6 +10,8 @@ from generator.generator import BaseGenerator, CombinatorialGenerator, Benchmark
 from surrogates.base import BaseSurrogate
 from encoding.base import BaseEncoding
 from utils.plotter import SimplePlotter
+from utils.trackers.mlflow import MLflowTracker
+from config.mlflow import MLflowConfig
 
 class BayesianOptimizationLoop:
     """
@@ -45,6 +47,8 @@ class BayesianOptimizationLoop:
         self.surrogate = surrogate
         self.encoding = encoding
         self.plotter = plotter
+        self.mlflow_config = config.mlflow_log_config
+        self.tracker = MLflowTracker(self, surrogate, mlflow_config)
         self.sequences: List[str] = []
         self.encoded_sequences: List[np.ndarray] = []
         self.fitness_values: List[float] = []
@@ -88,41 +92,86 @@ class BayesianOptimizationLoop:
         self.logger.info("Starting Bayesian Optimization Loop")
         self.initialize()
 
-        for iteration in range(self.config.n_iterations):
-            self.logger.info(f"Starting iteration {iteration + 1}")
+        with self.tracker:
+            self.tracker.log_params({
+                "acquisition_function": self.acquisition.__class__.__name__,
+                "surrogate_model": self.surrogate.__class__.__name__,
+                "encoding_method": self.encoding.__class__.__name__,
+                "generator_type": self.generator.__class__.__name__
+            })
 
-            self.surrogate.fit(np.array(self.encoded_sequences), np.array(self.fitness_values))
-            if isinstance(self.generator, (CombinatorialGenerator, BenchmarkGenerator)):
-                candidates = self.generator.generate_all()
-            else:  # MutationGenerator
-                candidates = self.generator.generate(self.config.n_candidates)
+            # Log initial metrics
+            initial_fitness_values = self.fitness_values[:self.config.n_initial]
+            self._log_metrics(0, initial_fitness_values, self.sequences[:self.config.n_initial], 
+                              np.zeros(self.config.n_initial), 0.0, 0.0)
 
-            if not candidates:
-                self.logger.warning(f"No new candidates generated in iteration {iteration + 1}. Using existing candidates.")
-                candidates = self.sequences  # Use existing sequences as candidates
+            for iteration in range(self.config.n_iterations):
+                start_time = time.time()
+                
+                # Fit surrogate model
+                train_loss, val_loss = self.fit_surrogate()
+                
+                # Generate and evaluate candidates
+                candidates, new_fitness_values, acquisition_values = self.generate_and_evaluate_candidates()
 
-            encoded_candidates = self.encoding.encode(candidates)
-            mu, sigma = self.surrogate.predict(encoded_candidates)
+                # Update sequences and metrics
+                self.update_sequences_and_metrics(iteration, candidates, new_fitness_values, acquisition_values, train_loss, val_loss, start_time)
 
-            acquisition_values = self.acquisition.acquire(mu, sigma, self.max_fitness)
+                self.logger.info(f"Iteration {iteration + 1} completed. Current max fitness: {self.max_fitness}")
 
-            idx_top = np.argsort(-acquisition_values)[:self.config.batch_size]
-            selected_candidates = [candidates[i] for i in idx_top]
-            new_fitness_values = self.query.query(selected_candidates)
-
-            self.sequences.extend(selected_candidates)
-            self.encoded_sequences.extend(self.encoding.encode(selected_candidates))
-            self.fitness_values.extend(new_fitness_values)
-            self.rounds.extend([iteration + 1] * len(selected_candidates))
-
-            # Update max fitness
-            self.max_fitness = max(self.max_fitness, max(new_fitness_values))
-            self.generator.update_sequences(selected_candidates)
-
-            self.logger.info(f"Iteration {iteration + 1} completed. Current max fitness: {self.max_fitness}")
+            # Log final results and artifacts
+            self.log_final_results()
 
         self.logger.info("Bayesian Optimization Loop completed")
         return self.sequences, self.fitness_values, self.rounds
+
+    def fit_surrogate(self):
+        X = torch.tensor(self.encoded_sequences, dtype=torch.float32)
+        y = torch.tensor(self.fitness_values, dtype=torch.float32)
+        train_loss, val_loss = self.surrogate.fit(X, y)
+        return train_loss, val_loss
+
+    def generate_and_evaluate_candidates(self):
+        candidates = self.generator.generate(self.config.n_candidates)
+        if not candidates:
+            self.logger.warning(f"No new candidates generated. Using existing candidates.")
+            candidates = self.sequences
+
+        encoded_candidates = self.encoding.encode(candidates)
+        mu, sigma = self.surrogate.predict(encoded_candidates)
+        acquisition_values = self.acquisition.acquire(mu, sigma, self.max_fitness)
+
+        idx_top = np.argsort(-acquisition_values)[:self.config.batch_size]
+        selected_candidates = [candidates[i] for i in idx_top]
+        new_fitness_values = self.query.query(selected_candidates)
+
+        return selected_candidates, new_fitness_values, acquisition_values[idx_top]
+
+    def update_sequences_and_metrics(self, iteration, candidates, new_fitness_values, acquisition_values, train_loss, val_loss, start_time):
+        self.sequences.extend(candidates)
+        self.encoded_sequences.extend(self.encoding.encode(candidates))
+        self.fitness_values.extend(new_fitness_values)
+        self.rounds.extend([iteration + 1] * len(candidates))
+
+        iteration_time = time.time() - start_time
+        self._log_metrics(iteration + 1, new_fitness_values, candidates, 
+                          acquisition_values, train_loss, iteration_time)
+
+        # Update max fitness and generator
+        self.max_fitness = max(self.max_fitness, max(new_fitness_values))
+        self.generator.update_sequences(candidates)
+
+    def _log_metrics(self, iteration: int, fitness_values: List[float], sequences: List[str], 
+                     acquisition_values: List[float], train_loss: float, iteration_time: float):
+        metrics = {
+            "max_fitness": max(fitness_values),
+            "mean_fitness": np.mean(fitness_values),
+            "std_fitness": np.std(fitness_values),
+            "train_loss": train_loss,
+            "iteration_time": iteration_time
+        }
+        for key, value in metrics.items():
+            self.tracker.log_metric(key, value, step=iteration)
 
     def get_best_sequence(self) -> Tuple[str, float]:
         """
@@ -166,3 +215,20 @@ class BayesianOptimizationLoop:
             seed_csv_path = os.path.join(self.plotter.output_dir, "csv", f"seed_{self.config.seed}_results.csv")
             self.seed_results_df.to_csv(seed_csv_path, index=False)
             self.logger.info(f"Seed {self.config.seed} results saved to {seed_csv_path}")
+    
+    def log_final_results(self):
+        best_sequence, best_fitness = self.get_best_sequence()
+        self.tracker.log_metric("final_max_fitness", best_fitness)
+        self.tracker.log_params({"best_sequence": best_sequence})
+
+        self.save_results_to_csv(os.path.join(self.plotter.output_dir, "csv", f"seed_{self.config.seed}_results.csv"))
+        self.tracker.log_artifact(os.path.join(self.plotter.output_dir, f"log_seed_{self.config.seed}.txt"))
+        self.tracker.log_artifact(os.path.join(self.plotter.output_dir, "csv", f"seed_{self.config.seed}_results.csv"))
+
+        # Log figures
+        self.tracker.log_figure(self.plotter.plot_embeddings(), "embeddings.png")
+        self.tracker.log_figure(self.plotter.plot_max_fitness(), "max_fitness.png")
+        self.tracker.log_figure(self.plotter.plot_training_loss(), "training_loss.png")
+        self.tracker.log_figure(self.plotter.plot_validation_loss(), "validation_loss.png")
+        self.tracker.log_figure(self.plotter.plot_training_metrics(), "training_metrics.png")
+        self.tracker.log_figure(self.plotter.plot_validation_metrics(), "validation_metrics.png")

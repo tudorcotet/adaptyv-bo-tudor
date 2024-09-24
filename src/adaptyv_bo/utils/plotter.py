@@ -60,6 +60,48 @@ class BasePlotter(ABC):
             all_max_fitness (List[List[float]]): List of maximum fitness progressions for each run.
         """
         pass
+    
+    @abstractmethod
+    def plot_training_loss(self, training_loss: List[float], validation_loss: List[float]):
+        """
+        Plot the training and validation loss over epochs.
+
+        Args:
+            training_loss (List[float]): List of training loss values for each epoch.
+            validation_loss (List[float]): List of validation loss values for each epoch.
+        """
+        pass
+
+    @abstractmethod
+    def plot_validation_loss(self, validation_loss: List[float]):
+        """
+        Plot the validation loss over epochs.
+
+        Args:
+            validation_loss (List[float]): List of validation loss values for each epoch.
+        """
+        pass
+
+    @abstractmethod
+    def plot_training_metrics(self, training_metrics: List[float], validation_metrics: List[float]):
+        """
+        Plot the training and validation metrics over epochs.
+
+        Args:
+            training_metrics (List[float]): List of training metric values for each epoch.
+            validation_metrics (List[float]): List of validation metric values for each epoch.
+        """
+        pass
+
+    @abstractmethod
+    def plot_validation_metrics(self, validation_metrics: List[float]):
+        """
+        Plot the validation metrics over epochs.
+
+        Args:
+            validation_metrics (List[float]): List of validation metric values for each epoch.
+        """
+        pass
 
 
 class SimplePlotter(BasePlotter):
@@ -163,3 +205,73 @@ class SimplePlotter(BasePlotter):
         plt.legend()
         plt.savefig(os.path.join(self.output_dir, "plots", 'average_max_fitness.png'))
         plt.close()
+
+    def plot_training_loss(self, training_loss: List[float], validation_loss: List[float]):
+        """
+        Plot the training and validation loss over epochs.
+
+        Args:
+            training_loss (List[float]): List of training loss values for each epoch.
+            validation_loss (List[float]): List of validation loss values for each epoch.
+        """
+        plt.figure(figsize=(10, 6))
+        plt.plot(range(len(training_loss)), training_loss, label='Training Loss')
+        plt.plot(range(len(validation_loss)), validation_loss, label='Validation Loss')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.title('Training and Validation Loss')
+        plt.legend()
+        plt.savefig(os.path.join(self.output_dir, "plots", 'training_loss.png'))
+        plt.close()
+
+    def plot_validation_loss(self, validation_loss: List[float]):
+        """
+        Plot the validation loss over epochs.
+
+        Args:
+            validation_loss (List[float]): List of validation loss values for each epoch.
+        """
+        plt.figure(figsize=(10, 6))
+        plt.plot(range(len(validation_loss)), validation_loss, label='Validation Loss')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.title('Validation Loss')
+        plt.legend()
+        plt.savefig(os.path.join(self.output_dir, "plots", 'validation_loss.png'))
+        plt.close()
+
+    def plot_training_metrics(self, training_metrics: List[float], validation_metrics: List[float]):
+        """
+        Plot the training and validation metrics over epochs.
+
+        Args:
+            training_metrics (List[float]): List of training metric values for each epoch.
+            validation_metrics (List[float]): List of validation metric values for each epoch.
+        """
+        plt.figure(figsize=(10, 6))
+        plt.plot(range(len(training_metrics)), training_metrics, label='Training Metrics')
+        plt.plot(range(len(validation_metrics)), validation_metrics, label='Validation Metrics')
+        plt.xlabel('Epoch')
+        plt.ylabel('Metrics')
+        plt.title('Training and Validation Metrics')
+        plt.legend()
+        plt.savefig(os.path.join(self.output_dir, "plots", 'training_metrics.png'))
+        plt.close()
+
+    def plot_validation_metrics(self, validation_metrics: List[float]):
+        """
+        Plot the validation metrics over epochs.
+
+        Args:
+            validation_metrics (List[float]): List of validation metric values for each epoch.
+        """
+        plt.figure(figsize=(10, 6))
+        plt.plot(range(len(validation_metrics)), validation_metrics, label='Validation Metrics')
+        plt.xlabel('Epoch')
+        plt.ylabel('Metrics')
+        plt.title('Validation Metrics')
+        plt.legend()
+        plt.savefig(os.path.join(self.output_dir, "plots", 'validation_metrics.png'))
+        plt.close()
+
+

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import List, Optional
+from config.mlflow import MLflowConfig
 
 @dataclass
 class OptimizationConfig:
@@ -7,12 +8,12 @@ class OptimizationConfig:
     Configuration class for optimization parameters.
 
     Attributes:
-        n_iterations (int): Number of optimization iterations. Default is 10.
-        n_candidates (int): Number of candidate solutions to generate. Default is 100000.
+        n_iterations (int): Number of optimization iterations. Default is 20.
+        n_candidates (int): Number of candidate solutions to generate. Default is 10.
         n_initial (int): Number of initial random samples. Default is 10.
         seq_length (int): Length of the sequence to optimize. Default is 4.
         beta (float): Exploration-exploitation trade-off parameter for UCB. Default is 2.0.
-        n_training_iter (int): Number of training iterations for the surrogate model. Default is 50.
+        n_training_iter (int): Number of training iterations for the surrogate model. Default is 10.
         query_method (str): Method for querying the benchmark data. Default is 'identical'.
         mode (str): Optimization mode. Default is 'benchmark'.
         n_seeds (int): Number of random seeds for multiple runs. Default is 1.
@@ -26,8 +27,9 @@ class OptimizationConfig:
         encoding_type (str): Type of sequence encoding to use. Default is 'one_hot'.
         benchmark_file (str): Path to the benchmark data file. Default is '/Users/tudorcotet/Desktop/small_gb1.csv'.
         batch_size (int): Batch size for optimization. Default is 5.
-        generator_type (str): Type of candidate generator to use. Default is 'benchmark'.
+        generator_type (str): Type of candidate generator to use. Default is 'mutation'.
         indices_to_mutate (Optional[List[int]]): Specific indices to mutate in the sequence. Default is None.
+        mlflow_log_config (MLflowConfig): Configuration for MLflow logging. Default is MLflowConfig().
     """
 
     n_iterations: int = 20
@@ -51,3 +53,4 @@ class OptimizationConfig:
     batch_size: int = 5
     generator_type: str = 'mutation'
     indices_to_mutate: Optional[List[int]] = None
+    mlflow_log_config: MLflowConfig = MLflowConfig()

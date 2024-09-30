@@ -2,7 +2,7 @@ import os
 import numpy as np
 import torch
 import pandas as pd
-from typing import List
+from typing import List, Dict
 from config.optimization import *
 from utils.load import load_benchmark_data, get_acquisition, get_generator, get_surrogate, get_encoding
 from utils.query import BenchmarkQuery
@@ -13,106 +13,142 @@ from encoding.onehot import OneHotEncoding
 from encoding.base import BaseEncoding
 from utils.plotter import SimplePlotter
 from optimization.bayesian_loop import BayesianOptimizationLoop
+from utils.trackers.mlflow import MLflowTracker
 import multiprocessing as mp
 import time
+import mlflow
 
+def get_parent_run_name(config: OptimizationConfig):
+    return (
+        f"experiment@{config.mlflow_config.experiment_name}"
+        f"_time@{int(time.time())}"
+        f"_surrogate@{config.surrogate_config.surrogate_type}"
+        f"_acquisition@{config.acquisition_config.acquisition_type}"
+        f"_encoding@{config.encoding_config.encoding_type.replace('_', '')}"
+        f"_generator@{config.generator_config.generator_type}"
+        f"_kernel@{config.surrogate_config.kernel_type}"
+    )
 
-def run_single_seed(output_dir: str, seed: int, config: OptimizationConfig, benchmark_data) -> pd.DataFrame:
+def run_single_seed(output_dir: str, seed: int, config: OptimizationConfig, benchmark_data, mlflow_tracker: MLflowTracker) -> pd.DataFrame:
     config.general_config.seed = seed
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
 
-    # Initialize the acquisition function
-    acquisition: BaseAcquisition = get_acquisition(config.acquisition_config)
-
-    # Create a query object for the benchmark data
-    query: BenchmarkQuery = BenchmarkQuery(config.query_config, benchmark_data)
-
-    # Randomly select initial sequences from the benchmark data
-    initial_sequences: List[str] = np.random.choice(list(benchmark_data.keys()), size=config.general_config.n_initial, replace=False).tolist()
-
-    # Initialize the sequence generator
-    generator: BaseGenerator = get_generator(config.generator_config, benchmark_data)
-
-    # Create the surrogate model
-    surrogate: BaseSurrogate = get_surrogate(config.surrogate_config)
-
-    # Initialize the sequence encoding method
-    encoding: BaseEncoding = get_encoding(config.encoding_config)
-
-    # Create a plotter object for visualizing results
-    plotter: SimplePlotter = SimplePlotter(encoding)
+    # Initialize components
+    acquisition = get_acquisition(config.acquisition_config)
+    query = BenchmarkQuery(config.query_config, benchmark_data)
+    generator = get_generator(config.generator_config, benchmark_data)
+    surrogate = get_surrogate(config.surrogate_config)
+    encoding = get_encoding(config.encoding_config)
+    plotter = SimplePlotter(encoding)
 
     # Initialize the Bayesian optimization loop
-    loop: BayesianOptimizationLoop = BayesianOptimizationLoop(config, acquisition, query, generator, surrogate, encoding, plotter, output_dir, seed)
+    loop = BayesianOptimizationLoop(config, acquisition, query, generator, surrogate, encoding, plotter, output_dir, seed, mlflow_tracker)
     
     # Run the optimization loop and get the results
     sequences, fitness_values, rounds = loop.run()
     return loop.seed_results_df
 
 def run_multiple_seeds(config: OptimizationConfig):
-    """
-    Run multiple seeds of the Bayesian optimization process and aggregate results.
-
-    This function performs the following steps:
-    1. Load benchmark data
-    2. For each seed:
-        a. Initialize components (acquisition, query, generator, surrogate, encoding, plotter)
-        b. Run the Bayesian optimization loop
-        c. Plot and save individual seed results
-    3. Combine results from all seeds
-    4. Save combined results
-    5. Plot average results across all seeds
-
-    Args:
-        config (OptimizationConfig): Configuration object containing optimization parameters
-
-    Returns:
-        None
-    """
     benchmark_data = load_benchmark_data(config.data_config.benchmark_file)
     all_results: List[pd.DataFrame] = []
     output_dir = config.output_dir
     os.makedirs(output_dir, exist_ok=True)
 
-    with mp.Pool(processes=config.general_config.n_seeds) as pool:
-        results = [pool.apply_async(run_single_seed, args=(output_dir, seed, config, benchmark_data)) for seed in range(config.general_config.n_seeds)]
-        for result in results:
-            try:
-                seed_result = result.get()
-                if not seed_result.empty:
-                    all_results.append(seed_result)
-            except Exception as e:
-                print(f"Error: {e}")
+    mlflow_tracker = MLflowTracker(config.mlflow_config)
+    parent_run_name = get_parent_run_name(config)
+    mlflow.set_tracking_uri('http://localhost:5050')
 
-    if all_results:
-        combined_results = pd.concat(all_results, ignore_index=True)
+    with mlflow_tracker.start_parent_run(parent_run_name) as parent_run:
+        parent_run_id = mlflow_tracker.parent_run_id
+        try:
+            # Add tags
+            mlflow_tracker.log_params({
+                "tags": {
+                    "experiment_type": "bayesian_optimization",
+                    "dataset": os.path.basename(config.data_config.benchmark_file),
+                    "optimization_target": "protein_fitness",
+                    "surrogate_type": config.surrogate_config.surrogate_type,
+                    "acquisition_type": config.acquisition_config.acquisition_type,
+                    "encoding_type": config.encoding_config.encoding_type,
+                    "generator_type": config.generator_config.generator_type,
+                    "kernel_type": config.surrogate_config.kernel_type,
+                    "n_iterations": config.general_config.n_iterations,
+                    "n_initial": config.general_config.n_initial,
+                    "n_seeds": config.general_config.n_seeds,
+                }
+            }, run_id=parent_run_id)
 
-        # Ensure the output directory exists
-        combined_dir = os.path.join(output_dir, "combined")
-        combined_csv_dir = os.path.join(combined_dir, "csv")
-        os.makedirs(combined_csv_dir, exist_ok=True)
-        
-        combined_csv_path = os.path.join(combined_csv_dir, "combined_results.csv")
-        combined_results.to_csv(combined_csv_path, index=False)
-        print(f"Combined results saved to {combined_csv_path}")
+            # Generate and log description
+            description = f"Bayesian optimization experiment using {config.surrogate_config.surrogate_type} surrogate, " \
+                          f"{config.acquisition_config.acquisition_type} acquisition function, " \
+                          f"{config.encoding_config.encoding_type} encoding, and " \
+                          f"{config.generator_config.generator_type} generator. " \
+                          f"Running for {config.general_config.n_iterations} iterations with {config.general_config.n_seeds} seeds."
+            mlflow_tracker.log_params({"description": description}, run_id=parent_run_id)
 
-        # Create a new plotter for the average results
-        average_plotter = SimplePlotter(get_encoding(config.encoding_config))
+            # Log parameters
+            mlflow_tracker.log_params({
+                "acquisition_type": config.acquisition_config.acquisition_type,
+                "surrogate_type": config.surrogate_config.surrogate_type,
+                "encoding_type": config.encoding_config.encoding_type,
+                "generator_type": config.generator_config.generator_type,
+                "kernel_type": config.surrogate_config.kernel_type,
+                "n_iterations": config.general_config.n_iterations,
+                "n_initial": config.general_config.n_initial,
+                "n_seeds": config.general_config.n_seeds,
+            }, run_id=parent_run_id)
 
-        # Extract fitness values for each seed
-        fitness_by_seed = [combined_results[combined_results['Seed'] == seed]['Fitness'].tolist()
+            with mp.Pool(processes=config.general_config.n_seeds) as pool:
+                results = [pool.apply_async(run_single_seed, args=(output_dir, seed, config, benchmark_data, mlflow_tracker)) 
                            for seed in range(config.general_config.n_seeds)]
+                for result in results:
+                    try:
+                        seed_result = result.get()
+                        if not seed_result.empty:
+                            all_results.append(seed_result)
+                    except Exception as e:
+                        print(f"Error in seed run: {e}")
 
-        # Plot average results
-        combined_plots_dir = os.path.join(combined_dir, "plots")
-        os.makedirs(combined_plots_dir, exist_ok=True)
-        average_plotter.plot_max_average_fitness(fitness_by_seed, combined_plots_dir)
-    else:
-        print("No results to combine.")
+            if all_results:
+                combined_results = pd.concat(all_results, ignore_index=True)
+                combined_csv_path = os.path.join(output_dir, "combined", "csv", "combined_results.csv")
+                os.makedirs(os.path.dirname(combined_csv_path), exist_ok=True)
+                combined_results.to_csv(combined_csv_path, index=False)
+                print(f"Combined results saved to {combined_csv_path}")
+
+                mlflow_tracker.log_artifact(combined_csv_path, run_id=parent_run_id)
+
+                # Log aggregate metrics across all seeds
+                aggregate_metrics = calculate_aggregate_metrics(all_results)
+                for metric_name, metric_value in aggregate_metrics.items():
+                    mlflow_tracker.log_metric(f"aggregate_{metric_name}", metric_value, run_id=parent_run_id)
+
+        except Exception as e:
+            print(f"Error in run_multiple_seeds: {e}")
+            raise
+    
+    mlflow_tracker.end_run()
+
+def calculate_aggregate_metrics(all_results: List[pd.DataFrame]) -> Dict[str, float]:
+    # Combine all results into a single DataFrame
+    combined_df = pd.concat(all_results, ignore_index=True)
+    
+    # Calculate aggregate metrics
+    aggregate_metrics = {
+        "max_fitness": combined_df['Fitness'].max(),
+        "mean_max_fitness": combined_df.groupby('Round')['Fitness'].max().mean(),
+        "std_max_fitness": combined_df.groupby('Round')['Fitness'].max().std(),
+        "mean_average_fitness": combined_df['Fitness'].mean(),
+        "mean_diversity": combined_df['Diversity'].mean() if 'Diversity' in combined_df.columns else None,
+        "mean_coverage": combined_df['Coverage'].mean() if 'Coverage' in combined_df.columns else None,
+    }
+    
+    return {k: v for k, v in aggregate_metrics.items() if v is not None}
 
 if __name__ == "__main__":
+    import os
     import argparse
     from dataclasses import asdict
 
@@ -121,49 +157,46 @@ if __name__ == "__main__":
         parser.add_argument(f'--{field.name}', type=field.type, default=field.default)
 
     args = parser.parse_args()
-    #config = OptimizationConfig(**{k: v for k, v in vars(args).items() if k in OptimizationConfig.__dataclass_fields__})
-    #run_multiple_seeds(config)
 
     # Define different configurations
     acquisition_types = ['ucb', 'ts', 'greedy', 'random']
-    #acquisition_types = ['ucb']
-    surrogate_types = ['gp']
+    surrogate_types = ['gp', 'random_forest']
     kernel_types = ['rbf', 'matern']
-    #kernel_types = ['rbf']
     output_dir = "output_benchmark_configs"
     configs = []
     for acquisition_type in acquisition_types:
         for surrogate_type in surrogate_types:
-            for kernel_type in kernel_types:
+            if surrogate_type == 'gp':
+                for kernel_type in kernel_types:
+                    configs.append(
+                        OptimizationConfig(
+                            acquisition_config=AcquisitionConfig(acquisition_type=acquisition_type),
+                            surrogate_config=SurrogateConfig(surrogate_type=surrogate_type, kernel_type=kernel_type)
+                        )
+                    )
+            else:
                 configs.append(
                     OptimizationConfig(
                         acquisition_config=AcquisitionConfig(acquisition_type=acquisition_type),
-                        surrogate_config=SurrogateConfig(surrogate_type=surrogate_type, kernel_type=kernel_type)
+                        surrogate_config=SurrogateConfig(surrogate_type=surrogate_type)
                     )
                 )
 
     # Run multiple seeds for each configuration
     for i, cfg in enumerate(configs):
+        os.environ["MLFLOW_TRACKING_URI"] = cfg.mlflow_config.tracking_uri
         print(f"\nRunning configuration {i+1}/{len(configs)}:")
         print(f"Acquisition: {cfg.acquisition_config.acquisition_type}")
         print(f"Surrogate: {cfg.surrogate_config.surrogate_type}")
-        print(f"Kernel: {cfg.surrogate_config.kernel_type}")
+        if cfg.surrogate_config.surrogate_type == 'gp':
+            print(f"Kernel: {cfg.surrogate_config.kernel_type}")
         
-        config_output_dir = os.path.join(output_dir, f"acquisition_{cfg.acquisition_config.acquisition_type}_surrogate_{cfg.surrogate_config.surrogate_type}_kernel_{cfg.surrogate_config.kernel_type}")
+        config_output_dir = os.path.join(output_dir, f"acquisition_{cfg.acquisition_config.acquisition_type}_surrogate_{cfg.surrogate_config.surrogate_type}")
+        if cfg.surrogate_config.surrogate_type == 'gp':
+            config_output_dir += f"_kernel_{cfg.surrogate_config.kernel_type}"
         os.makedirs(config_output_dir, exist_ok=True)
         cfg.output_dir = config_output_dir
         run_multiple_seeds(cfg)
 
     print("\nAll configurations completed.")
 
-    # After running all seeds and collecting results
-    #all_results = []
-   # for seed in range(config.general_config.n_seeds):
-        #seed_results = pd.read_csv(f"output_dir/seed_{seed}/csv/seed_{seed}_results.csv")
-        #all_results.append(seed_results)
-
-    #combined_results_df = pd.concat(all_results, ignore_index=True)
-
-    # Now plot the average max fitness
-    #plotter = SimplePlotter(get_encoding(config.encoding_config))
-    #plotter.plot_average_max_fitness(combined_results_df, "output_dir")

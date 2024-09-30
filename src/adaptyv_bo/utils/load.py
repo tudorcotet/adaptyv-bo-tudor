@@ -2,6 +2,7 @@ import pandas as pd
 from typing import Dict, List
 from config.optimization import OptimizationConfig
 from surrogates.gp import GPSurrogate
+from surrogates.random_forest import RandomForestSurrogate
 from acquisitions.acquisitions import *
 from encoding.onehot import *
 from generator.generator import *
@@ -41,7 +42,8 @@ def get_surrogate(config: SurrogateConfig):
     """
     if config.surrogate_type == 'gp':
         return GPSurrogate(config)
-    # Add other surrogate types here
+    elif config.surrogate_type == 'random_forest':
+        return RandomForestSurrogate(config)
     else:
         raise ValueError(f"Unknown surrogate type: {config.surrogate_type}")
 

@@ -10,10 +10,34 @@ class SurrogateConfig:
         surrogate_type (str): Type of surrogate model to use. Default is 'gp'.
         kernel_type (str): Type of kernel to use for the surrogate model (if GPs). Default is 'rbf'.
         n_training_iter (int): Number of training iterations for the surrogate model. Default is 10.
+        input_dim (int): Input dimension for the surrogate model.
+        output_dim (int): Output dimension for the surrogate model.
+        hidden_dim (int): Hidden dimension for the surrogate model.
+        n_models (int): Number of models for the surrogate model.
+        dropout_rate (float): Dropout rate for the surrogate model.
+        n_samples (int): Number of samples for the surrogate model.
+        mc_samples (int): Number of Monte Carlo samples for the surrogate model.
+        learning_rate (float): Learning rate for the surrogate model.
+        n_epochs (int): Number of epochs for the surrogate model.
+        n_estimators (int): Number of estimators for the surrogate model.
+        max_depth (int): Maximum depth for the surrogate model.
+        random_state (int): Random state for the surrogate model.
     """
     surrogate_type: str = 'gp'
     kernel_type: str = 'rbf'
-    n_training_iter: int = 50   
+    n_training_iter: int = 50
+    input_dim: int = 10
+    output_dim: int = 1
+    hidden_dim: int = 64
+    n_models: int = 5
+    dropout_rate: float = 0.5
+    n_samples: int = 100
+    mc_samples: int = 50
+    learning_rate: float = 0.001
+    n_epochs: int = 100
+    n_estimators: int = 100
+    max_depth: int = 10
+    random_state: int = 42
 
 @dataclass
 class EncodingConfig:
@@ -72,7 +96,7 @@ class ModalConfig:
 
 @dataclass
 class MLflowConfig:
-    tracking_uri: str = "http://localhost:5080"
+    tracking_uri: str = "http://localhost:5050" 
     experiment_name: str = "testing1"
     log_params: bool = True
     log_model_summary: bool = True
@@ -107,4 +131,4 @@ class OptimizationConfig:
     encoding_config: EncodingConfig = EncodingConfig()
 
     output_dir = 'output'
-    
+

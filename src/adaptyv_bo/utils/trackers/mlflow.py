@@ -17,8 +17,8 @@ class MLflowTracker:
         self.parent_run_id = None
 
     @contextmanager
-    def start_parent_run(self, run_name: str):
-        with mlflow.start_run(run_name=run_name, experiment_id=self.experiment_id) as parent_run:
+    def start_parent_run(self, run_name: str, description: str):
+        with mlflow.start_run(run_name=run_name, experiment_id=self.experiment_id, description=description) as parent_run:
             self.parent_run_id = parent_run.info.run_id
             yield parent_run
 
@@ -51,16 +51,9 @@ class MLflowTracker:
     def end_run(self):
         mlflow.end_run()
     
-    def log_dataset(self, dataset: pd.DataFrame, dataset_name: str, run_id: str):
-        # Save the dataset as a CSV file
-        dataset_path = f"{dataset_name}.csv"
-        dataset.to_csv(dataset_path, index=False)
-        
-        # Log the dataset as an artifact
-        mlflow.log_artifact(dataset_path, run_id=run_id)
-        
-        # Register the dataset
-        mlflow.register_model(
-            model_uri=f"runs:/{run_id}/{dataset_path}",
-            name=dataset_name
-        )
+    def log_dataset(self, dataset: pd.DataFrame, context: str):
+        mlflow.log_input(dataset, context = context)
+    
+    def set_tags(self, tags: Dict[str, Any]):
+        mlflow.set_tags(tags)
+    

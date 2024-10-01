@@ -96,8 +96,8 @@ class ModalConfig:
 
 @dataclass
 class MLflowConfig:
-    tracking_uri: str = "http://localhost:5050" 
-    experiment_name: str = "testing1"
+    tracking_uri: str = "https://mlflow.internal.adaptyvbio.com/" 
+    experiment_name: str = "2024/adaptyv_bo_tudor"
     log_params: bool = True
     log_model_summary: bool = True
     log_model_graph: bool = True

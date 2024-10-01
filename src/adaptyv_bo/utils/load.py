@@ -7,6 +7,8 @@ from acquisitions.acquisitions import *
 from encoding.onehot import *
 from generator.generator import *
 from config.optimization import *
+import mlflow
+import os
 
 def load_benchmark_data(file_path: str) -> Dict[str, float]:
     """
@@ -24,7 +26,24 @@ def load_benchmark_data(file_path: str) -> Dict[str, float]:
     df = pd.read_csv(file_path)
     if 'fitness' not in df.columns or 'sequence' not in df.columns:
         raise ValueError("CSV file must contain 'fitness' and 'sequence' columns")
-    return df.set_index('sequence')['fitness'].to_dict()
+    return df
+
+def load_benchmark_data_mlflow(file_path: str):
+    """
+    Load benchmark data from a CSV file.
+
+    Args:
+        mlflow_tracker (MLflowTracker): The MLflow tracker.
+
+    Returns:
+        Dict[str, float]: A dictionary mapping sequences to their fitness values.   
+    """
+
+    df = pd.read_csv(file_path)
+    experiment_name = os.path.basename(file_path).split('.')[0]
+
+    dataset = mlflow.data.from_pandas(df, source=file_path, name=experiment_name, targets="fitness")
+    return dataset, experiment_name
 
 
 def get_surrogate(config: SurrogateConfig):

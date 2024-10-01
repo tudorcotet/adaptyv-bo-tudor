@@ -4,7 +4,7 @@ import torch
 import pandas as pd
 from typing import List, Dict
 from config.optimization import *
-from utils.load import load_benchmark_data, get_acquisition, get_generator, get_surrogate, get_encoding
+from utils.load import load_benchmark_data_mlflow, load_benchmark_data, get_acquisition, get_generator, get_surrogate, get_encoding
 from utils.query import BenchmarkQuery
 from acquisitions.base import BaseAcquisition
 from generator.base import BaseGenerator
@@ -18,9 +18,10 @@ import multiprocessing as mp
 import time
 import mlflow
 
-def get_parent_run_name(config: OptimizationConfig):
+def get_parent_run_name(config: OptimizationConfig, dataset_name: str, benchmark: bool = True):
     return (
-        f"experiment@{config.mlflow_config.experiment_name}"
+        f"dataset@{dataset_name.replace('_', '-')}"
+        f"_production@{not benchmark}"
         f"_time@{int(time.time())}"
         f"_surrogate@{config.surrogate_config.surrogate_type}"
         f"_acquisition@{config.acquisition_config.acquisition_type}"
@@ -51,42 +52,45 @@ def run_single_seed(output_dir: str, seed: int, config: OptimizationConfig, benc
     return loop.seed_results_df
 
 def run_multiple_seeds(config: OptimizationConfig):
-    benchmark_data = load_benchmark_data(config.data_config.benchmark_file)
+    #dataset, experiment_name = load_benchmark_data_mlflow(config.data_config.benchmark_file)
+    dataset, dataset_name = load_benchmark_data_mlflow(config.data_config.benchmark_file)
+    benchmark_data = dataset._df.set_index('sequence')['fitness'].to_dict()
+
     all_results: List[pd.DataFrame] = []
     output_dir = config.output_dir
     os.makedirs(output_dir, exist_ok=True)
 
     mlflow_tracker = MLflowTracker(config.mlflow_config)
-    parent_run_name = get_parent_run_name(config)
-    mlflow.set_tracking_uri('http://localhost:5050')
+    parent_run_name = get_parent_run_name(config, dataset_name)
 
-    with mlflow_tracker.start_parent_run(parent_run_name) as parent_run:
-        parent_run_id = mlflow_tracker.parent_run_id
-        try:
-            # Add tags
-            mlflow_tracker.log_params({
-                "tags": {
-                    "experiment_type": "bayesian_optimization",
-                    "dataset": os.path.basename(config.data_config.benchmark_file),
-                    "optimization_target": "protein_fitness",
-                    "surrogate_type": config.surrogate_config.surrogate_type,
-                    "acquisition_type": config.acquisition_config.acquisition_type,
-                    "encoding_type": config.encoding_config.encoding_type,
-                    "generator_type": config.generator_config.generator_type,
-                    "kernel_type": config.surrogate_config.kernel_type,
-                    "n_iterations": config.general_config.n_iterations,
-                    "n_initial": config.general_config.n_initial,
-                    "n_seeds": config.general_config.n_seeds,
-                }
-            }, run_id=parent_run_id)
-
-            # Generate and log description
-            description = f"Bayesian optimization experiment using {config.surrogate_config.surrogate_type} surrogate, " \
+    description = f"Bayesian optimization experiment using {config.surrogate_config.surrogate_type} surrogate, " \
                           f"{config.acquisition_config.acquisition_type} acquisition function, " \
                           f"{config.encoding_config.encoding_type} encoding, and " \
                           f"{config.generator_config.generator_type} generator. " \
                           f"Running for {config.general_config.n_iterations} iterations with {config.general_config.n_seeds} seeds."
-            mlflow_tracker.log_params({"description": description}, run_id=parent_run_id)
+
+    with mlflow_tracker.start_parent_run(parent_run_name, description) as parent_run:
+
+        parent_run_id = mlflow_tracker.parent_run_id
+        try:
+            #add dataset to mlflow
+            mlflow_tracker.log_dataset(dataset, context="benchmark")
+            # Add tags
+            mlflow_tracker.set_tags({
+                "experiment_type": "bayesian_optimization_benchmark",
+                "dataset": os.path.basename(config.data_config.benchmark_file),
+                "dataset_size": len(benchmark_data),
+                "dataset_name": dataset_name,
+                "optimization_target": "protein_fitness",
+                "surrogate_type": config.surrogate_config.surrogate_type,
+                "acquisition_type": config.acquisition_config.acquisition_type,
+                "encoding_type": config.encoding_config.encoding_type,
+                "generator_type": config.generator_config.generator_type,
+                "kernel_type": config.surrogate_config.kernel_type,
+                "n_iterations": config.general_config.n_iterations,
+                "n_initial": config.general_config.n_initial,
+                "n_seeds": config.general_config.n_seeds,
+                })
 
             # Log parameters
             mlflow_tracker.log_params({
@@ -152,16 +156,20 @@ if __name__ == "__main__":
     import argparse
     from dataclasses import asdict
 
+    import mlflow
+    mlflow.end_run()
+
     parser = argparse.ArgumentParser()
     for field in OptimizationConfig.__dataclass_fields__.values():
         parser.add_argument(f'--{field.name}', type=field.type, default=field.default)
 
     args = parser.parse_args()
+    os.environ['MLFLOW_TRACKING_URI'] = 'https://mlflow.internal.adaptyvbio.com/'
 
     # Define different configurations
-    acquisition_types = ['ucb', 'ts', 'greedy', 'random']
+    acquisition_types = ['ucb', 'ts', 'greedy', 'random', 'ei']
     surrogate_types = ['gp', 'random_forest']
-    kernel_types = ['rbf', 'matern']
+    kernel_types = ['rbf', 'matern', 'linear']
     output_dir = "output_benchmark_configs"
     configs = []
     for acquisition_type in acquisition_types:
@@ -178,13 +186,12 @@ if __name__ == "__main__":
                 configs.append(
                     OptimizationConfig(
                         acquisition_config=AcquisitionConfig(acquisition_type=acquisition_type),
-                        surrogate_config=SurrogateConfig(surrogate_type=surrogate_type)
+                        surrogate_config=SurrogateConfig(surrogate_type=surrogate_type, kernel_type='None')
                     )
                 )
 
     # Run multiple seeds for each configuration
     for i, cfg in enumerate(configs):
-        os.environ["MLFLOW_TRACKING_URI"] = cfg.mlflow_config.tracking_uri
         print(f"\nRunning configuration {i+1}/{len(configs)}:")
         print(f"Acquisition: {cfg.acquisition_config.acquisition_type}")
         print(f"Surrogate: {cfg.surrogate_config.surrogate_type}")

@@ -123,7 +123,7 @@ class BayesianOptimizationLoop:
             Tuple[List[str], List[float], List[int]]: Lists of sequences, fitness values, and rounds.
         """
         
-        child_run_name = self.get_experiment_string(self.seed)
+        child_run_name = f'seed_{self.seed}'
 
         try:
             with self.mlflow_tracker.start_child_run(child_run_name, self.parent_run_id) as child_run:

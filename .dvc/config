@@ -1,0 +1,5 @@
+[core]
+    remote = wasabi
+['remote "wasabi"']
+    url = s3://ml1/dvc/2024/adaptyv_bo_tudor
+    endpointurl = https://s3.eu-central-1.wasabisys.com

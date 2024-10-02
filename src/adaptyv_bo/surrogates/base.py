@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import torch
 from typing import Any
-from config.optimization import SurrogateConfig
+from config.optimization import SurrogateConfig 
 
 class BaseSurrogate(ABC):
     """
@@ -23,7 +23,15 @@ class BaseSurrogate(ABC):
             config (OptimizationConfig): Configuration for the optimization process.
         """
         self.config = config
-        self.device = torch.device("cuda" if torch.cuda.is_available() and config.use_gpu else "cpu")
+        self._device = torch.device(config.device)
+
+    @property
+    def device(self):
+        return self._device
+
+    @device.setter
+    def device(self, value):
+        self._device = value
 
     @abstractmethod
     def fit(self, X: Any, y: Any) -> None:
@@ -62,3 +70,4 @@ class BaseSurrogate(ABC):
             Batch predictions for the given input.
         """
         pass
+    

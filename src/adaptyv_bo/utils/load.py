@@ -3,6 +3,12 @@ from typing import Dict, List
 from config.optimization import OptimizationConfig
 from surrogates.gp import GPSurrogate
 from surrogates.random_forest import RandomForestSurrogate
+from surrogates.cnn import CNN1DDropoutSurrogate
+from surrogates.dnn import DropoutLinearSurrogate
+from surrogates.bnn import BNNSurrogate
+from surrogates.xgboost import XGBoostSurrogate
+from surrogates.ensemble import DeepEnsembleSurrogate
+from surrogates.dkl import DeepKernelGPSurrogate
 from acquisitions.acquisitions import *
 from encoding.onehot import *
 from generator.generator import *
@@ -61,8 +67,20 @@ def get_surrogate(config: SurrogateConfig):
     """
     if config.surrogate_type == 'gp':
         return GPSurrogate(config)
-    elif config.surrogate_type == 'random_forest':
+    elif config.surrogate_type == 'cnn':
+        return CNN1DDropoutSurrogate(config)
+    elif config.surrogate_type == 'rf':
         return RandomForestSurrogate(config)
+    elif config.surrogate_type == 'ensemble':
+        return DeepEnsembleSurrogate(config)
+    elif config.surrogate_type == 'dkl':
+        return DeepKernelGPSurrogate(config)
+    elif config.surrogate_type == 'dnn':
+        return DropoutLinearSurrogate(config)
+    elif config.surrogate_type == 'bnn':
+        return BNNSurrogate(config)
+    elif config.surrogate_type == 'xgboost':
+        return XGBoostSurrogate(config)
     else:
         raise ValueError(f"Unknown surrogate type: {config.surrogate_type}")
 

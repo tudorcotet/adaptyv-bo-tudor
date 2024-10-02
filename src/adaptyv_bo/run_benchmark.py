@@ -20,7 +20,8 @@ import mlflow
 
 def get_parent_run_name(config: OptimizationConfig, dataset_name: str, benchmark: bool = True):
     return (
-        f"dataset@{dataset_name.replace('_', '-')}"
+        "test2"
+        f"_dataset@{dataset_name.replace('_', '-')}"
         f"_production@{not benchmark}"
         f"_time@{int(time.time())}"
         f"_surrogate@{config.surrogate_config.surrogate_type}"
@@ -28,6 +29,7 @@ def get_parent_run_name(config: OptimizationConfig, dataset_name: str, benchmark
         f"_encoding@{config.encoding_config.encoding_type.replace('_', '')}"
         f"_generator@{config.generator_config.generator_type}"
         f"_kernel@{config.surrogate_config.kernel_type}"
+        f"_loss@{config.surrogate_config.loss_fn}"
     )
 
 def run_single_seed(output_dir: str, seed: int, config: OptimizationConfig, benchmark_data, mlflow_tracker: MLflowTracker) -> pd.DataFrame:
@@ -52,7 +54,6 @@ def run_single_seed(output_dir: str, seed: int, config: OptimizationConfig, benc
     return loop.seed_results_df
 
 def run_multiple_seeds(config: OptimizationConfig):
-    #dataset, experiment_name = load_benchmark_data_mlflow(config.data_config.benchmark_file)
     dataset, dataset_name = load_benchmark_data_mlflow(config.data_config.benchmark_file)
     benchmark_data = dataset._df.set_index('sequence')['fitness'].to_dict()
 
@@ -65,17 +66,16 @@ def run_multiple_seeds(config: OptimizationConfig):
 
     description = f"Bayesian optimization experiment using {config.surrogate_config.surrogate_type} surrogate, " \
                           f"{config.acquisition_config.acquisition_type} acquisition function, " \
-                          f"{config.encoding_config.encoding_type} encoding, and " \
-                          f"{config.generator_config.generator_type} generator. " \
+                          f"{config.encoding_config.encoding_type} encoding, " \
+                          f"{config.generator_config.generator_type} generator, and " \
+                          f"{config.surrogate_config.loss_fn} loss function. " \
                           f"Running for {config.general_config.n_iterations} iterations with {config.general_config.n_seeds} seeds."
 
     with mlflow_tracker.start_parent_run(parent_run_name, description) as parent_run:
 
         parent_run_id = mlflow_tracker.parent_run_id
         try:
-            #add dataset to mlflow
             mlflow_tracker.log_dataset(dataset, context="benchmark")
-            # Add tags
             mlflow_tracker.set_tags({
                 "experiment_type": "bayesian_optimization_benchmark",
                 "dataset": os.path.basename(config.data_config.benchmark_file),
@@ -87,22 +87,25 @@ def run_multiple_seeds(config: OptimizationConfig):
                 "encoding_type": config.encoding_config.encoding_type,
                 "generator_type": config.generator_config.generator_type,
                 "kernel_type": config.surrogate_config.kernel_type,
+                "loss_function": config.surrogate_config.loss_fn,
                 "n_iterations": config.general_config.n_iterations,
                 "n_initial": config.general_config.n_initial,
                 "n_seeds": config.general_config.n_seeds,
                 })
 
-            # Log parameters
             mlflow_tracker.log_params({
                 "acquisition_type": config.acquisition_config.acquisition_type,
                 "surrogate_type": config.surrogate_config.surrogate_type,
                 "encoding_type": config.encoding_config.encoding_type,
                 "generator_type": config.generator_config.generator_type,
                 "kernel_type": config.surrogate_config.kernel_type,
+                "loss_function": config.surrogate_config.loss_fn,
                 "n_iterations": config.general_config.n_iterations,
                 "n_initial": config.general_config.n_initial,
                 "n_seeds": config.general_config.n_seeds,
             }, run_id=parent_run_id)
+
+            successful_runs = 0  # Counter for successful runs
 
             with mp.Pool(processes=config.general_config.n_seeds) as pool:
                 results = [pool.apply_async(run_single_seed, args=(output_dir, seed, config, benchmark_data, mlflow_tracker)) 
@@ -112,8 +115,12 @@ def run_multiple_seeds(config: OptimizationConfig):
                         seed_result = result.get()
                         if not seed_result.empty:
                             all_results.append(seed_result)
+                            successful_runs += 1  # Increment the counter for successful runs
                     except Exception as e:
                         print(f"Error in seed run: {e}")
+
+            # Log the number of successful runs
+            mlflow_tracker.log_metric("successful_child_runs", successful_runs, run_id=parent_run_id)
 
             if all_results:
                 combined_results = pd.concat(all_results, ignore_index=True)
@@ -124,7 +131,6 @@ def run_multiple_seeds(config: OptimizationConfig):
 
                 mlflow_tracker.log_artifact(combined_csv_path, run_id=parent_run_id)
 
-                # Log aggregate metrics across all seeds
                 aggregate_metrics = calculate_aggregate_metrics(all_results)
                 for metric_name, metric_value in aggregate_metrics.items():
                     mlflow_tracker.log_metric(f"aggregate_{metric_name}", metric_value, run_id=parent_run_id)
@@ -136,10 +142,8 @@ def run_multiple_seeds(config: OptimizationConfig):
     mlflow_tracker.end_run()
 
 def calculate_aggregate_metrics(all_results: List[pd.DataFrame]) -> Dict[str, float]:
-    # Combine all results into a single DataFrame
     combined_df = pd.concat(all_results, ignore_index=True)
     
-    # Calculate aggregate metrics
     aggregate_metrics = {
         "max_fitness": combined_df['Fitness'].max(),
         "mean_max_fitness": combined_df.groupby('Round')['Fitness'].max().mean(),
@@ -166,39 +170,48 @@ if __name__ == "__main__":
     args = parser.parse_args()
     os.environ['MLFLOW_TRACKING_URI'] = 'https://mlflow.internal.adaptyvbio.com/'
 
-    # Define different configurations
     acquisition_types = ['ucb', 'ts', 'greedy', 'random', 'ei']
-    surrogate_types = ['gp', 'random_forest']
+    surrogate_types = ['gp', 'dnn', 'bnn', 'dkl', 'xgboost', 'rf', 'ensemble']
     kernel_types = ['rbf', 'matern', 'linear']
+    loss_functions = ['bt', 'mse', 'mae']
+
     output_dir = "output_benchmark_configs"
     configs = []
     for acquisition_type in acquisition_types:
         for surrogate_type in surrogate_types:
-            if surrogate_type == 'gp':
+            if surrogate_type in ['bnn', 'dnn', 'cnn', 'ensemble']:
+                for loss_fn in loss_functions:
+                    configs.append(
+                        OptimizationConfig(
+                            acquisition_config=AcquisitionConfig(acquisition_type=acquisition_type),
+                            surrogate_config=SurrogateConfig(surrogate_type=surrogate_type, kernel_type='None', loss_fn=loss_fn)
+                        )
+                    )
+            elif surrogate_type == 'gp' or surrogate_type == 'dkl':
                 for kernel_type in kernel_types:
                     configs.append(
                         OptimizationConfig(
                             acquisition_config=AcquisitionConfig(acquisition_type=acquisition_type),
-                            surrogate_config=SurrogateConfig(surrogate_type=surrogate_type, kernel_type=kernel_type)
+                            surrogate_config=SurrogateConfig(surrogate_type=surrogate_type, kernel_type=kernel_type, loss_fn='None')
                         )
                     )
             else:
                 configs.append(
                     OptimizationConfig(
                         acquisition_config=AcquisitionConfig(acquisition_type=acquisition_type),
-                        surrogate_config=SurrogateConfig(surrogate_type=surrogate_type, kernel_type='None')
+                        surrogate_config=SurrogateConfig(surrogate_type=surrogate_type, kernel_type='None', loss_fn='None')
                     )
                 )
-
-    # Run multiple seeds for each configuration
+            
     for i, cfg in enumerate(configs):
         print(f"\nRunning configuration {i+1}/{len(configs)}:")
         print(f"Acquisition: {cfg.acquisition_config.acquisition_type}")
         print(f"Surrogate: {cfg.surrogate_config.surrogate_type}")
+        print(f"Loss Function: {cfg.surrogate_config.loss_fn}")
         if cfg.surrogate_config.surrogate_type == 'gp':
             print(f"Kernel: {cfg.surrogate_config.kernel_type}")
         
-        config_output_dir = os.path.join(output_dir, f"acquisition_{cfg.acquisition_config.acquisition_type}_surrogate_{cfg.surrogate_config.surrogate_type}")
+        config_output_dir = os.path.join(output_dir, f"acquisition_{cfg.acquisition_config.acquisition_type}_surrogate_{cfg.surrogate_config.surrogate_type}_loss_{cfg.surrogate_config.loss_fn}")
         if cfg.surrogate_config.surrogate_type == 'gp':
             config_output_dir += f"_kernel_{cfg.surrogate_config.kernel_type}"
         os.makedirs(config_output_dir, exist_ok=True)
@@ -206,4 +219,3 @@ if __name__ == "__main__":
         run_multiple_seeds(cfg)
 
     print("\nAll configurations completed.")
-

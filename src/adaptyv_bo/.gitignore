@@ -1,4 +1,5 @@
 /config.local
 /tmp
 /cache
+/output_benchmark_configs
 .envrc

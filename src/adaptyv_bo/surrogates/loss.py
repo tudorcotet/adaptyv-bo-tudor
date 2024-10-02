@@ -1,8 +1,11 @@
 import torch
 import torch.nn.functional as F
+import numpy as np
 
             
-def generate_comparisons(y, noise = .0):
+def generate_comparisons(y, noise=0.0):
+    if isinstance(y, np.ndarray):
+        y = torch.from_numpy(y)
     y_t = y.t()
     y_t = y_t + noise * torch.randn_like(y_t)
 
@@ -10,7 +13,7 @@ def generate_comparisons(y, noise = .0):
 
     return comparison_matrix
 
-def bt_model(y_hat, beta = 1.):
+def bt_model(y_hat, beta=1.):
     """
     Computes the comparison matrix using the Bradley-Terry model.
 
@@ -30,7 +33,7 @@ def bt_loss(y_hat, y, beta=1., noise=0.):
 
     Args:
         y_hat (torch.Tensor): Predicted scores of shape (batch_size, num_classes).
-        y (torch.Tensor): True labels of shape (batch_size).
+        y (torch.Tensor or numpy.ndarray): True labels of shape (batch_size).
         beta (float, optional): Scaling factor for the Bradley-Terry model. Defaults to 1.
         noise (float, optional): Amount of noise to add to the true labels. Defaults to 0.
 

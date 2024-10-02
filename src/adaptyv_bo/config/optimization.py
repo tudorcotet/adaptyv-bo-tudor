@@ -23,21 +23,56 @@ class SurrogateConfig:
         max_depth (int): Maximum depth for the surrogate model.
         random_state (int): Random state for the surrogate model.
     """
-    surrogate_type: str = 'gp'
-    kernel_type: str = 'rbf'
-    n_training_iter: int = 50
-    input_dim: int = 10
+    surrogate_type: str = 'ensemble'
+    input_dim: int = 1280
     output_dim: int = 1
     hidden_dim: int = 64
-    n_models: int = 5
-    dropout_rate: float = 0.5
-    n_samples: int = 100
-    mc_samples: int = 50
-    learning_rate: float = 0.001
-    n_epochs: int = 100
     n_estimators: int = 100
-    max_depth: int = 10
+    dropout_rate: float = 0.1
+    learning_rate: float = 0.3
+    n_epochs: int = 100
+    kernel_type: str = 'rbf'
+    batch_size: int = 32
+    mc_samples: int = 10
+    loss_fn: str = 'mse'
+    device: str = 'cpu'
+    vocab_size: int = 20
+    seq_len: Optional[int] = None
+    n_training_iter: int = 100
+
+    n_layers: int = 3
+    activation: str = 'relu'
+    boosting_type: str = 'gbdt'
+    subsample: float = 1.0
+    min_samples_split: int = 2
+    min_samples_leaf: int = 1
+    
+    C: float = 1.0
+    epsilon: float = 0.1
+    
+    eta: float = 0.3
+    gamma: float = 0
+    min_child_weight: int = 1
+    
+    prior_mu: float = 0.0
+    prior_sigma: float = 0.1
+    num_monte_carlo: int = 10
+
+    # XGBoost parameters
+    max_depth: int = 6
+    objective: str = 'reg:squarederror'
+    booster: str = 'gbtree'
+    tree_method: str = 'auto'
+    n_jobs: int = -1
     random_state: int = 42
+    reg_alpha: float = 0
+    reg_lambda: float = 1
+    scale_pos_weight: float = 1
+    base_score: float = 0.5
+
+    #BT model parameters
+    bt_beta: float = 1.
+    bt_noise: float = 0.1
 
 @dataclass
 class EncodingConfig:
@@ -97,7 +132,7 @@ class ModalConfig:
 @dataclass
 class MLflowConfig:
     tracking_uri: str = "https://mlflow.internal.adaptyvbio.com/" 
-    experiment_name: str = "2024/adaptyv_bo_tudor"
+    experiment_name: str = "2024/02_adaptyv_bo_tudor"
     log_params: bool = True
     log_model_summary: bool = True
     log_model_graph: bool = True

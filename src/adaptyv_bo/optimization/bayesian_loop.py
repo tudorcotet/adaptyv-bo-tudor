@@ -82,6 +82,7 @@ class BayesianOptimizationLoop:
             'expected_shortfall': ExpectedShortfall(),
             'cvar': ConditionalValueAtRisk()
         })
+        self.loss_fn_name = config.surrogate_config.loss_fn  # Add this line
 
     def _setup_logger(self) -> logging.Logger:
         """Set up and return a logger for the optimization process."""
@@ -289,6 +290,7 @@ class BayesianOptimizationLoop:
                 'Acquisition': self.config.acquisition_config.acquisition_type,
                 'Encoding': self.config.encoding_config.encoding_type,
                 'Generator': self.config.generator_config.generator_type,
+                'Loss_Function': self.loss_fn_name,  # Add this line
             })
 
     def save_results_to_csv(self):
@@ -306,7 +308,10 @@ class BayesianOptimizationLoop:
         best_sequence, best_fitness = self.get_best_sequence()
         try:
             self.log_with_retry(self.mlflow_tracker.log_metric, "final_max_fitness", best_fitness, run_id=self.child_run_id)
-            self.log_with_retry(self.mlflow_tracker.log_params, {"best_sequence": best_sequence}, run_id=self.child_run_id)
+            self.log_with_retry(self.mlflow_tracker.log_params, {
+                "best_sequence": best_sequence,
+                "loss_function": self.loss_fn_name  # Add this line
+            }, run_id=self.child_run_id)
 
             # Log final metrics
             final_metrics = self.metrics_tracker.get_final_metrics()
@@ -351,4 +356,4 @@ class BayesianOptimizationLoop:
                 time.sleep(delay * (2 ** attempt))  # Exponential backoff
 
     def get_experiment_string(self, seed):
-        return f"experiment@{self.config.mlflow_config.experiment_name}_time@{int(time.time())}_surrogate@{self.config.surrogate_config.surrogate_type}_acquisition@{self.config.acquisition_config.acquisition_type}_encoding@{self.config.encoding_config.encoding_type.replace('_','')}_generator@{self.config.generator_config.generator_type}_kernel@{self.config.surrogate_config.kernel_type}_seed@{seed}"
+        return f"experiment@{self.config.mlflow_config.experiment_name}_time@{int(time.time())}_surrogate@{self.config.surrogate_config.surrogate_type}_acquisition@{self.config.acquisition_config.acquisition_type}_encoding@{self.config.encoding_config.encoding_type.replace('_','')}_generator@{self.config.generator_config.generator_type}_kernel@{self.config.surrogate_config.kernel_type}_loss@{self.loss_fn_name}_seed@{seed}"  # Add loss function to the experiment string

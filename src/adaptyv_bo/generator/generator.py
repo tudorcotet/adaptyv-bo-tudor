@@ -101,6 +101,7 @@ class BenchmarkGenerator(BaseGenerator):
         super().__init__(config)
         self.acquired_sequences = set()
         self.all_candidates = list(benchmark_data.keys())
+        self.all_fitness = list(benchmark_data.values())
 
     def generate(self, n_candidates: int) -> List[str]:
         """
@@ -117,6 +118,29 @@ class BenchmarkGenerator(BaseGenerator):
         available_candidates = [c for c in self.all_candidates if c not in self.acquired_sequences]
         selected = random.sample(available_candidates, min(n_candidates, len(available_candidates)))
         return selected
+
+    def generate_initial(self, n_candidates: int) -> List[str]:
+        """
+        Generate the initial candidates for the benchmarking generator. 
+        In this case, we will be generating the lowest fitness n_candidates.
+
+        Args:
+            n_candidates (int): Number of candidates to generate.
+
+        Returns:
+            List[str]: List of generated initial candidate sequences.
+        """
+        if isinstance(n_candidates, str) and n_candidates.lower() == 'all':
+            return self.generate_all()
+        
+        # Sort candidates by fitness (assuming lower fitness is better)
+        sorted_candidates = sorted(zip(self.all_candidates, self.all_fitness), key=lambda x: x[1])
+        
+        # Select the n_candidates with the lowest fitness
+        selected = sorted_candidates[:n_candidates]
+        selected_seq = [s[0] for s in selected]
+
+        return selected_seq
 
     def generate_all(self) -> List[str]:
         """

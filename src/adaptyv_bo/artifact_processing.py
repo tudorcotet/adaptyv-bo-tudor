@@ -127,6 +127,7 @@ def analyze_model_efficiency(aggregated_df):
     
     return efficiency_metrics.sort_values('fold_change', ascending=False)
 
+
 if __name__ == "__main__":
     import argparse
     

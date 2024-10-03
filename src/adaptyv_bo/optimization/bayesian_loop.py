@@ -100,7 +100,7 @@ class BayesianOptimizationLoop:
         """Initialize the optimization process with a set of initial sequences."""
 
         # Generate initial sequences
-        initial_sequences = self.generator.generate(self.config.general_config.n_initial)
+        initial_sequences = self.generator.generate_initial(self.config.general_config.n_initial)
         initial_fitness = self.query.query(initial_sequences)
         self.sequences.extend(initial_sequences)
         self.encoded_sequences.extend(self.encoding.encode(initial_sequences))
@@ -121,7 +121,6 @@ class BayesianOptimizationLoop:
                           initial_diversity, initial_diversity_quantiles)
 
         # Start the MLflow run
-             
         self.logger.info(f"Initialization complete. Max fitness: {self.max_fitness}")
         self.logger.info(f"Initial sequences: {initial_sequences}")
         self.logger.info(f"Initial fitness values: {initial_fitness}")

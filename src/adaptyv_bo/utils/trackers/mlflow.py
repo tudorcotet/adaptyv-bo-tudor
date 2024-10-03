@@ -54,6 +54,7 @@ class MLflowTracker:
     def log_dataset(self, dataset: pd.DataFrame, context: str):
         mlflow.log_input(dataset, context = context)
     
-    def set_tags(self, tags: Dict[str, Any]):
-        mlflow.set_tags(tags)
+    def set_tags(self, tags: Dict[str, Any], run_id: str):
+        for key, value in tags.items():
+            self.client.set_tag(run_id, str(key), value)
     

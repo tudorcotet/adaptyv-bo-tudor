@@ -2,5 +2,6 @@
 /tmp
 /cache
 /output_benchmark_configs
+/output_benchmark_csv
 /lightning_logs
 .envrc

@@ -2,7 +2,7 @@ import logging
 import os
 import numpy as np
 import pandas as pd 
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 from config.optimization import OptimizationConfig
 from acquisitions.base import BaseAcquisition
 from utils.query import BenchmarkQuery
@@ -17,6 +17,7 @@ from utils.metrics import MetricsTracker, MaxFitness, AverageFitness, StandardDe
 import mlflow
 from mlflow.exceptions import MlflowException
 from requests.exceptions import RequestException
+from scipy.spatial.distance import pdist, squareform
 
 class BayesianOptimizationLoop:
     """
@@ -83,6 +84,7 @@ class BayesianOptimizationLoop:
             'cvar': ConditionalValueAtRisk()
         })
         self.loss_fn_name = config.surrogate_config.loss_fn  # Add this line
+        self.diversity_values = []  # Add this line
 
     def _setup_logger(self) -> logging.Logger:
         """Set up and return a logger for the optimization process."""
@@ -109,6 +111,14 @@ class BayesianOptimizationLoop:
 
         #update the generator with the initial sequences
         self.generator.update_sequences(initial_sequences)
+
+        initial_diversity = self.calculate_diversity(initial_sequences)
+        initial_diversity_quantiles = self.calculate_diversity_quantiles(initial_sequences)
+        
+        self._log_metrics(0, initial_fitness, initial_sequences, 
+                          np.zeros(self.config.general_config.n_initial), 0.0, 0.0, 0.0, 
+                          np.mean(initial_fitness), np.std(initial_fitness),
+                          initial_diversity, initial_diversity_quantiles)
 
         # Start the MLflow run
              
@@ -141,17 +151,27 @@ class BayesianOptimizationLoop:
                     "n_initial": self.config.general_config.n_initial,
                     "batch_size": self.config.general_config.batch_size,
                 }, run_id=self.child_run_id)
+                
+                # Log seed run tags
+                self.mlflow_tracker.set_tags(tags = {
+                   "seed": self.seed,
+                   "acquisition_type": self.config.acquisition_config.acquisition_type,
+                   "surrogate_type": self.config.surrogate_config.surrogate_type,
+                   "encoding_type": self.config.encoding_config.encoding_type,
+                   "generator_type": self.config.generator_config.generator_type,
+                   "kernel_type": self.config.surrogate_config.kernel_type,
+                   "loss_function": self.config.surrogate_config.loss_fn,
+                   "n_iterations": self.config.general_config.n_iterations,
+                   "n_initial": self.config.general_config.n_initial,
+                   "n_seeds": self.config.general_config.n_seeds,
+                }, run_id=self.child_run_id)
+
         except Exception as e:
             self.logger.error(f"Failed to start MLflow run or log parameters: {e}")
             # Continue with the optimization process without MLflow logging
 
         self.logger.info("Starting Bayesian Optimization Loop")
         self.initialize()
-
-        # Log initial metrics
-        initial_fitness_values = self.fitness_values[:self.config.general_config.n_initial]
-        self._log_metrics(0, initial_fitness_values, self.sequences[:self.config.general_config.n_initial], 
-                                np.zeros(self.config.general_config.n_initial), 0.0, 0.0, 0.0, 0.0, 0.0)
 
         for iteration in range(self.config.general_config.n_iterations):
             start_time = time.time()
@@ -168,11 +188,19 @@ class BayesianOptimizationLoop:
                 self.logger.warning(f"No candidates generated in iteration {iteration + 1}")
                 continue
             
+            # Calculate diversity
+            diversity = self.calculate_diversity(self.sequences)
+            diversity_quantiles = self.calculate_diversity_quantiles(self.sequences)
+
             # Update sequences and metrics
             self.update_sequences_and_metrics(iteration, candidates, new_fitness_values, acquisition_values, train_loss, val_loss, start_time)
 
             # Update metrics
             self.metrics_tracker.update(self.fitness_values, iteration)
+
+            self._log_metrics(iteration + 1, new_fitness_values, candidates, 
+                              acquisition_values, train_loss, val_loss, start_time,
+                              np.mean(new_fitness_values), np.std(new_fitness_values), diversity, diversity_quantiles)
 
             self.logger.info(f"Iteration {iteration + 1} completed. Current max fitness: {self.max_fitness}")
 
@@ -215,7 +243,14 @@ class BayesianOptimizationLoop:
 
             self.max_fitness = max(self.max_fitness, max(new_fitness_values))
             
-            # Add checks for empty arrays and zero values
+            # Calculate diversity only for new candidates
+            new_diversity = self.calculate_diversity(candidates)
+            self.diversity_values.extend([new_diversity] * len(candidates))
+
+            # Calculate overall diversity and quantiles (for logging purposes)
+            overall_diversity = self.calculate_diversity(self.sequences)
+            diversity_quantiles = self.calculate_diversity_quantiles(self.sequences)
+
             if len(new_fitness_values) > 0:
                 mean_fitness = np.mean(new_fitness_values)
                 std_fitness = np.std(new_fitness_values)
@@ -225,7 +260,7 @@ class BayesianOptimizationLoop:
 
             self._log_metrics(iteration + 1, new_fitness_values, candidates, 
                               acquisition_values, train_loss, val_loss, iteration_time,
-                              mean_fitness, std_fitness)
+                              mean_fitness, std_fitness, overall_diversity, diversity_quantiles)
 
             # Update max fitness and generator
             self.generator.update_sequences(candidates)
@@ -234,20 +269,31 @@ class BayesianOptimizationLoop:
 
     def _log_metrics(self, iteration: int, fitness_values: List[float], sequences: List[str], 
                      acquisition_values: List[float], train_loss: float, val_loss: float, 
-                     iteration_time: float, mean_fitness_current: float, std_fitness_current: float):
+                     iteration_time: float, mean_fitness_current: float, std_fitness_current: float,
+                     diversity: float, diversity_quantiles: Dict[str, float]):
         metrics = {
-                "max_fitness_current": max(fitness_values) if fitness_values else 0,
-                "mean_fitness_current": mean_fitness_current,
-                "std_fitness_current": std_fitness_current,
-                "max_fitness": self.max_fitness,
-                "mean_fitness": np.mean(self.fitness_values) if self.fitness_values else 0,
-                "std_fitness": np.std(self.fitness_values) if self.fitness_values else 0,
-                "train_loss": train_loss,
-                "val_loss": val_loss,
-                "iteration_time": iteration_time,
-                "iteration": iteration,
-                "total_evaluated_sequences": len(self.sequences)
-            }
+            "max_fitness_current": max(fitness_values) if fitness_values else 0,
+            "mean_fitness_current": mean_fitness_current,
+            "std_fitness_current": std_fitness_current,
+            "max_fitness": self.max_fitness,
+            "mean_fitness": np.mean(self.fitness_values) if self.fitness_values else 0,
+            "std_fitness": np.std(self.fitness_values) if self.fitness_values else 0,
+            "train_loss": train_loss,
+            "val_loss": val_loss,
+            "iteration_time": iteration_time,
+            "iteration": iteration,
+            "total_evaluated_sequences": len(self.sequences),
+            "diversity": diversity,
+            "min_diversity": diversity_quantiles['min_diversity'],
+            "max_diversity": diversity_quantiles['max_diversity'],
+            "median_diversity": diversity_quantiles['median_diversity'],
+            "q25_diversity": diversity_quantiles['q25_diversity'],
+            "q75_diversity": diversity_quantiles['q75_diversity']
+        }
+        
+        # Add fitness quantiles
+        quantiles = self.calculate_fitness_quantiles()
+        metrics.update(quantiles)
 
         try:
             for key, value in metrics.items():
@@ -256,6 +302,31 @@ class BayesianOptimizationLoop:
             self.logger.error(f"Failed to log metrics to MLflow: {e}")
             self.logger.error(f"Metrics: {metrics}")
 
+    def calculate_fitness_quantiles(self):
+        fitness_array = np.array(self.fitness_values)
+        return {
+            'min_fitness': np.min(fitness_array),
+            'max_fitness': np.max(fitness_array),
+            'median_fitness': np.median(fitness_array),
+            'q25_fitness': np.percentile(fitness_array, 25),
+            'q75_fitness': np.percentile(fitness_array, 75)
+        }
+
+    def calculate_diversity(self, sequences):
+        encoded_sequences = self.encoding.encode(sequences)
+        distances = pdist(encoded_sequences, metric='hamming')
+        return np.mean(distances)
+
+    def calculate_diversity_quantiles(self, sequences):
+        encoded_sequences = self.encoding.encode(sequences)
+        distances = pdist(encoded_sequences, metric='hamming')
+        return {
+            'min_diversity': np.min(distances),
+            'max_diversity': np.max(distances),
+            'median_diversity': np.median(distances),
+            'q25_diversity': np.percentile(distances, 25),
+            'q75_diversity': np.percentile(distances, 75)
+        }
 
     def get_best_sequence(self) -> Tuple[str, float]:
         """
@@ -280,18 +351,27 @@ class BayesianOptimizationLoop:
         Get the results for the current seed.
         """
         if self.seed_results_df.empty:
+            # Ensure all lists have the same length
+            min_length = min(len(self.rounds), len(self.sequences), len(self.fitness_values), len(self.diversity_values))
+            
             self.seed_results_df = pd.DataFrame({
-                'Seed': self.seed,
-                'Round': self.rounds,
-                'Sequence': self.sequences,
-                'Fitness': self.fitness_values,
-                'Surrogate': self.config.surrogate_config.surrogate_type,
-                'Kernel': self.config.surrogate_config.kernel_type,
-                'Acquisition': self.config.acquisition_config.acquisition_type,
-                'Encoding': self.config.encoding_config.encoding_type,
-                'Generator': self.config.generator_config.generator_type,
-                'Loss_Function': self.loss_fn_name,  # Add this line
+                'Seed': [self.seed] * min_length,
+                'Round': self.rounds[:min_length],
+                'Sequence': self.sequences[:min_length],
+                'Fitness': self.fitness_values[:min_length],
+                'Diversity': self.diversity_values[:min_length],
+                'Surrogate': [self.config.surrogate_config.surrogate_type] * min_length,
+                'Kernel': [self.config.surrogate_config.kernel_type] * min_length,
+                'Acquisition': [self.config.acquisition_config.acquisition_type] * min_length,
+                'Encoding': [self.config.encoding_config.encoding_type] * min_length,
+                'Generator': [self.config.generator_config.generator_type] * min_length,
+                'Loss_Function': [self.loss_fn_name] * min_length,
             })
+
+            if min_length < len(self.rounds):
+                self.logger.warning(f"Some data was truncated. Original lengths: rounds={len(self.rounds)}, "
+                                    f"sequences={len(self.sequences)}, fitness={len(self.fitness_values)}, "
+                                    f"diversity={len(self.diversity_values)}. Used length: {min_length}")
 
     def save_results_to_csv(self):
         """

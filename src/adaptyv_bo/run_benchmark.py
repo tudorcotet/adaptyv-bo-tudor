@@ -20,8 +20,7 @@ import mlflow
 
 def get_parent_run_name(config: OptimizationConfig, dataset_name: str, benchmark: bool = True):
     return (
-        "test2"
-        f"_dataset@{dataset_name.replace('_', '-')}"
+        f"dataset@{dataset_name.replace('_', '-')}"
         f"_production@{not benchmark}"
         f"_time@{int(time.time())}"
         f"_surrogate@{config.surrogate_config.surrogate_type}"
@@ -69,14 +68,17 @@ def run_multiple_seeds(config: OptimizationConfig):
                           f"{config.encoding_config.encoding_type} encoding, " \
                           f"{config.generator_config.generator_type} generator, and " \
                           f"{config.surrogate_config.loss_fn} loss function. " \
-                          f"Running for {config.general_config.n_iterations} iterations with {config.general_config.n_seeds} seeds."
+                          f"Running for {config.general_config.n_iterations} iterations with {config.general_config.n_seeds} seeds." \
+                          f"Writeup https://www.notion.so/adaptyvbio/Adaptyv-AL-BO-project-38485f06c5d948f6b48a7abdf5bc2108"
+
 
     with mlflow_tracker.start_parent_run(parent_run_name, description) as parent_run:
 
         parent_run_id = mlflow_tracker.parent_run_id
         try:
             mlflow_tracker.log_dataset(dataset, context="benchmark")
-            mlflow_tracker.set_tags({
+
+            mlflow_tracker.set_tags(tags = {
                 "experiment_type": "bayesian_optimization_benchmark",
                 "dataset": os.path.basename(config.data_config.benchmark_file),
                 "dataset_size": len(benchmark_data),
@@ -91,8 +93,8 @@ def run_multiple_seeds(config: OptimizationConfig):
                 "n_iterations": config.general_config.n_iterations,
                 "n_initial": config.general_config.n_initial,
                 "n_seeds": config.general_config.n_seeds,
-                })
-
+                }, run_id = parent_run_id)
+            
             mlflow_tracker.log_params({
                 "acquisition_type": config.acquisition_config.acquisition_type,
                 "surrogate_type": config.surrogate_config.surrogate_type,
@@ -135,6 +137,11 @@ def run_multiple_seeds(config: OptimizationConfig):
                 for metric_name, metric_value in aggregate_metrics.items():
                     mlflow_tracker.log_metric(f"aggregate_{metric_name}", metric_value, run_id=parent_run_id)
 
+                # Calculate and log aggregate diversity quantiles
+                aggregate_diversity_quantiles = calculate_aggregate_diversity_quantiles(all_results)
+                for metric_name, metric_value in aggregate_diversity_quantiles.items():
+                    mlflow_tracker.log_metric(f"aggregate_{metric_name}", metric_value, run_id=parent_run_id)
+
         except Exception as e:
             print(f"Error in run_multiple_seeds: {e}")
             raise
@@ -153,7 +160,37 @@ def calculate_aggregate_metrics(all_results: List[pd.DataFrame]) -> Dict[str, fl
         "mean_coverage": combined_df['Coverage'].mean() if 'Coverage' in combined_df.columns else None,
     }
     
+    # Add fitness quantiles
+    fitness_quantiles = calculate_fitness_quantiles(combined_df)
+    aggregate_metrics.update(fitness_quantiles)
+    
     return {k: v for k, v in aggregate_metrics.items() if v is not None}
+
+def calculate_fitness_quantiles(df: pd.DataFrame) -> Dict[str, float]:
+    return {
+        'min_fitness': df['Fitness'].min(),
+        'max_fitness': df['Fitness'].max(),
+        'median_fitness': df['Fitness'].median(),
+        'q25_fitness': df['Fitness'].quantile(0.25),
+        'q75_fitness': df['Fitness'].quantile(0.75)
+    }
+
+def calculate_aggregate_diversity_quantiles(all_results: List[pd.DataFrame]) -> Dict[str, float]:
+    combined_df = pd.concat(all_results, ignore_index=True)
+    
+    if 'Diversity' not in combined_df.columns:
+        print("Warning: 'Diversity' column not found in the results. Skipping diversity quantiles calculation.")
+        return {}
+    
+    aggregate_diversity_quantiles = {
+        "min_diversity": combined_df['Diversity'].min(),
+        "max_diversity": combined_df['Diversity'].max(),
+        "median_diversity": combined_df['Diversity'].median(),
+        "q25_diversity": combined_df['Diversity'].quantile(0.25),
+        "q75_diversity": combined_df['Diversity'].quantile(0.75)
+    }
+    
+    return aggregate_diversity_quantiles
 
 if __name__ == "__main__":
     import os

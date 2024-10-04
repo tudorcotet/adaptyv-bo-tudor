@@ -17,6 +17,65 @@ from utils.trackers.mlflow import MLflowTracker
 import multiprocessing as mp
 import time
 import mlflow
+import modal
+
+app = modal.App("bayesian-test-app")
+
+image = (
+    modal.Image.debian_slim()
+    .pip_install_from_requirements(
+            '/Users/tudorcotet/Documents/Adaptyv/adaptyv-bo-tudor/requirements.txt'
+    )
+    .pip_install("python-dotenv")
+)
+
+volume =  modal.Volume.from_name("my-volume", create_if_missing=True)
+
+
+
+def calculate_aggregate_metrics(all_results: List[pd.DataFrame]) -> Dict[str, float]:
+    combined_df = pd.concat(all_results, ignore_index=True)
+    
+    aggregate_metrics = {
+        "max_fitness": combined_df['Fitness'].max(),
+        "mean_max_fitness": combined_df.groupby('Round')['Fitness'].max().mean(),
+        "std_max_fitness": combined_df.groupby('Round')['Fitness'].max().std(),
+        "mean_average_fitness": combined_df['Fitness'].mean(),
+        "mean_diversity": combined_df['Diversity'].mean() if 'Diversity' in combined_df.columns else None,
+        "mean_coverage": combined_df['Coverage'].mean() if 'Coverage' in combined_df.columns else None,
+    }
+    
+    # Add fitness quantiles
+    fitness_quantiles = calculate_fitness_quantiles(combined_df)
+    aggregate_metrics.update(fitness_quantiles)
+    
+    return {k: v for k, v in aggregate_metrics.items() if v is not None}
+
+def calculate_fitness_quantiles(df: pd.DataFrame) -> Dict[str, float]:
+    return {
+        'min_fitness': df['Fitness'].min(),
+        'max_fitness': df['Fitness'].max(),
+        'median_fitness': df['Fitness'].median(),
+        'q25_fitness': df['Fitness'].quantile(0.25),
+        'q75_fitness': df['Fitness'].quantile(0.75)
+    }
+
+def calculate_aggregate_diversity_quantiles(all_results: List[pd.DataFrame]) -> Dict[str, float]:
+    combined_df = pd.concat(all_results, ignore_index=True)
+    
+    if 'Diversity' not in combined_df.columns:
+        print("Warning: 'Diversity' column not found in the results. Skipping diversity quantiles calculation.")
+        return {}
+    
+    aggregate_diversity_quantiles = {
+        "min_diversity": combined_df['Diversity'].min(),
+        "max_diversity": combined_df['Diversity'].max(),
+        "median_diversity": combined_df['Diversity'].median(),
+        "q25_diversity": combined_df['Diversity'].quantile(0.25),
+        "q75_diversity": combined_df['Diversity'].quantile(0.75)
+    }
+    
+    return aggregate_diversity_quantiles
 
 def get_parent_run_name(config: OptimizationConfig, dataset_name: str, benchmark: bool = True):
     return (
@@ -52,7 +111,38 @@ def run_single_seed(output_dir: str, seed: int, config: OptimizationConfig, benc
     sequences, fitness_values, rounds = loop.run()
     return loop.seed_results_df
 
+
+@app.function(image=image, 
+              volumes={"/root/.output": volume}, 
+              mounts=[modal.Mount.from_local_dir("/Users/tudorcotet/Documents/Adaptyv/adaptyv-bo-tudor/src/adaptyv_bo/data/datasets/gb1", remote_path="/root/.data")],
+              secrets=[modal.Secret.from_name("adaptyv-secret"),
+                       modal.Secret.from_name("mlflow-uri"),
+                       modal.Secret.from_dotenv(path = '/Users/tudorcotet/Documents/Adaptyv/adaptyv-bo-tudor/src/adaptyv_bo', filename=".envrc")])
 def run_multiple_seeds(config: OptimizationConfig):
+
+
+    output_dir = "output_benchmark_configs"
+    cfg = config
+    config.mlflow_config.tracking_uri = os.environ["MLFLOW_TRACKING_URI"]
+    print(os.environ["MLFLOW_TRACKING_USERNAME"])
+    print(os.environ["MLFLOW_TRACKING_PASSWORD"])
+    print(os.environ["MLFLOW_TRACKING_URI"])
+
+
+    print(f"Acquisition: {cfg.acquisition_config.acquisition_type}")
+    print(f"Surrogate: {cfg.surrogate_config.surrogate_type}")
+    print(f"Loss Function: {cfg.surrogate_config.loss_fn}")
+    if cfg.surrogate_config.surrogate_type == 'gp':
+        print(f"Kernel: {cfg.surrogate_config.kernel_type}")
+    
+    config_output_dir = os.path.join(output_dir, f"acquisition_{cfg.acquisition_config.acquisition_type}_surrogate_{cfg.surrogate_config.surrogate_type}_loss_{cfg.surrogate_config.loss_fn}")
+    if cfg.surrogate_config.surrogate_type == 'gp':
+        config_output_dir += f"_kernel_{cfg.surrogate_config.kernel_type}"
+    os.makedirs(config_output_dir, exist_ok=True)
+    cfg.output_dir = config_output_dir
+
+    os.environ["MLFLOW_TRACKING_URI"]
+
     dataset, dataset_name = load_benchmark_data_mlflow(config.data_config.benchmark_file)
     benchmark_data = dataset._df.set_index('sequence')['fitness'].to_dict()
 
@@ -148,64 +238,14 @@ def run_multiple_seeds(config: OptimizationConfig):
     
     mlflow_tracker.end_run()
 
-def calculate_aggregate_metrics(all_results: List[pd.DataFrame]) -> Dict[str, float]:
-    combined_df = pd.concat(all_results, ignore_index=True)
-    
-    aggregate_metrics = {
-        "max_fitness": combined_df['Fitness'].max(),
-        "mean_max_fitness": combined_df.groupby('Round')['Fitness'].max().mean(),
-        "std_max_fitness": combined_df.groupby('Round')['Fitness'].max().std(),
-        "mean_average_fitness": combined_df['Fitness'].mean(),
-        "mean_diversity": combined_df['Diversity'].mean() if 'Diversity' in combined_df.columns else None,
-        "mean_coverage": combined_df['Coverage'].mean() if 'Coverage' in combined_df.columns else None,
-    }
-    
-    # Add fitness quantiles
-    fitness_quantiles = calculate_fitness_quantiles(combined_df)
-    aggregate_metrics.update(fitness_quantiles)
-    
-    return {k: v for k, v in aggregate_metrics.items() if v is not None}
-
-def calculate_fitness_quantiles(df: pd.DataFrame) -> Dict[str, float]:
-    return {
-        'min_fitness': df['Fitness'].min(),
-        'max_fitness': df['Fitness'].max(),
-        'median_fitness': df['Fitness'].median(),
-        'q25_fitness': df['Fitness'].quantile(0.25),
-        'q75_fitness': df['Fitness'].quantile(0.75)
-    }
-
-def calculate_aggregate_diversity_quantiles(all_results: List[pd.DataFrame]) -> Dict[str, float]:
-    combined_df = pd.concat(all_results, ignore_index=True)
-    
-    if 'Diversity' not in combined_df.columns:
-        print("Warning: 'Diversity' column not found in the results. Skipping diversity quantiles calculation.")
-        return {}
-    
-    aggregate_diversity_quantiles = {
-        "min_diversity": combined_df['Diversity'].min(),
-        "max_diversity": combined_df['Diversity'].max(),
-        "median_diversity": combined_df['Diversity'].median(),
-        "q25_diversity": combined_df['Diversity'].quantile(0.25),
-        "q75_diversity": combined_df['Diversity'].quantile(0.75)
-    }
-    
-    return aggregate_diversity_quantiles
-
-if __name__ == "__main__":
+@app.local_entrypoint()
+def main():
     import os
     import argparse
     from dataclasses import asdict
 
     import mlflow
     mlflow.end_run()
-
-    parser = argparse.ArgumentParser()
-    for field in OptimizationConfig.__dataclass_fields__.values():
-        parser.add_argument(f'--{field.name}', type=field.type, default=field.default)
-
-    args = parser.parse_args()
-    os.environ['MLFLOW_TRACKING_URI'] = 'https://mlflow.internal.adaptyvbio.com/'
 
     acquisition_types = ['ucb', 'ts', 'greedy', 'random', 'ei']
     surrogate_types = ['gp', 'dnn', 'bnn', 'dkl', 'xgboost', 'rf', 'ensemble']
@@ -239,20 +279,9 @@ if __name__ == "__main__":
                         surrogate_config=SurrogateConfig(surrogate_type=surrogate_type, kernel_type='None', loss_fn='None')
                     )
                 )
-            
-    for i, cfg in enumerate(configs):
-        print(f"\nRunning configuration {i+1}/{len(configs)}:")
-        print(f"Acquisition: {cfg.acquisition_config.acquisition_type}")
-        print(f"Surrogate: {cfg.surrogate_config.surrogate_type}")
-        print(f"Loss Function: {cfg.surrogate_config.loss_fn}")
-        if cfg.surrogate_config.surrogate_type == 'gp':
-            print(f"Kernel: {cfg.surrogate_config.kernel_type}")
-        
-        config_output_dir = os.path.join(output_dir, f"acquisition_{cfg.acquisition_config.acquisition_type}_surrogate_{cfg.surrogate_config.surrogate_type}_loss_{cfg.surrogate_config.loss_fn}")
-        if cfg.surrogate_config.surrogate_type == 'gp':
-            config_output_dir += f"_kernel_{cfg.surrogate_config.kernel_type}"
-        os.makedirs(config_output_dir, exist_ok=True)
-        cfg.output_dir = config_output_dir
-        run_multiple_seeds(cfg)
+    
+    for x in run_multiple_seeds.map(configs):
+        print('Done')
+    
 
     print("\nAll configurations completed.")

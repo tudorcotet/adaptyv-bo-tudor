@@ -131,8 +131,8 @@ class ModalConfig:
 
 @dataclass
 class MLflowConfig:
-    tracking_uri: str = "https://mlflow.internal.adaptyvbio.com/" 
-    experiment_name: str = "2024/02_adaptyv_bo_tudor/002_benchmark_test"
+    tracking_uri: str = None
+    experiment_name: str = "2024/02_adaptyv_bo_tudor/003_benchmark_test"
     log_params: bool = True
     log_model_summary: bool = True
     log_model_graph: bool = True
@@ -151,7 +151,7 @@ class DataConfig:
     """
     Configuration class for benchmark parameters.
     """
-    benchmark_file: str = '/Users/tudorcotet/Documents/Adaptyv/adaptyv-bo-tudor/src/adaptyv_bo/data/datasets/gb1/gb1_3site.csv'
+    benchmark_file: str = '/root/.data/gb1_3site.csv'
 
 
 @dataclass
